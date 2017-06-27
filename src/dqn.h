@@ -982,7 +982,7 @@ DQN_FILE_SCOPE i32  DqnRnd_PCGRange(DqnRandPCGState *pcg, i32 min, i32 max);
 #ifdef DQN_XPLATFORM_LAYER
 
 #if defined(DQN_WIN32_PLATFORM)
-	#define WIN32_LEAN_AND_MEAN
+	#define WIN32_LEAN_AND_MEAN 1
 	#include <Windows.h>
 
 #elif defined(DQN_UNIX_PLATFORM)

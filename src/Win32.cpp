@@ -1,3 +1,6 @@
+#include "LOGLPlatform.h"
+#include "OpenGL.h"
+
 #define UNICODE
 #define _UNICODE
 
@@ -10,8 +13,6 @@
 #include <Psapi.h>    // For GetProcessMemoryInfo()
 
 #include <gl/gl.h>
-#include "external/glext.h"
-#include "external/wglext.h"
 
 FILE_SCOPE bool globalRunning = true;
 
@@ -38,41 +39,50 @@ FILE_SCOPE LRESULT CALLBACK Win32MainProcCallback(HWND window, UINT msg,
 	return result;
 }
 
-FILE_SCOPE void Win32ProcessMessages(HWND window)
+FILE_SCOPE inline void Win32UpdateKey(PlatformKeyState *const key, const bool isDown)
+{
+	if (key->endedDown != isDown)
+	{
+		key->endedDown = isDown;
+		key->halfTransitionCount++;
+	}
+}
+
+FILE_SCOPE void Win32ProcessInputSeparately(HWND window, PlatformInput *const input)
 {
 	MSG msg;
+	DQN_ASSERT(input);
 	while (PeekMessage(&msg, window, 0, 0, PM_REMOVE))
 	{
 		switch (msg.message)
 		{
-			case WM_COMMAND:
-			{
-			}
-			break;
-
 			case WM_LBUTTONDOWN:
 			case WM_RBUTTONDOWN:
 			case WM_LBUTTONUP:
 			case WM_RBUTTONUP:
 			{
+				if (!input) return;
+				PlatformMouse *mouse = &input->mouse;
+
 				bool isDown = (msg.message == WM_LBUTTONDOWN || msg.message == WM_RBUTTONDOWN);
-				(void)isDown;
 				if (msg.message == WM_LBUTTONDOWN || msg.message == WM_LBUTTONUP)
-				{
-				}
+					Win32UpdateKey(&mouse->leftBtn, isDown);
 				else if (msg.message == WM_RBUTTONDOWN || msg.message == WM_RBUTTONUP)
-				{
-				}
+					Win32UpdateKey(&mouse->rightBtn, isDown);
+				else
+					DQN_ASSERT(DQN_INVALID_CODE_PATH);
 			}
 			break;
 
 			case WM_MOUSEMOVE:
 			{
+				if (!input) return;
+				PlatformMouse *mouse = &input->mouse;
+
 				LONG height;
 				DqnWin32_GetClientDim(window, NULL, &height);
-				f32 mouseX = (f32)(GET_X_LPARAM(msg.lParam));
-				f32 mouseY = (f32)(height - GET_Y_LPARAM(msg.lParam));
-				(void)mouseX; (void)mouseY;
+				mouse->x = GET_X_LPARAM(msg.lParam);
+				mouse->y = height - GET_Y_LPARAM(msg.lParam);
 			}
 			break;
 
@@ -81,33 +91,35 @@ FILE_SCOPE void Win32ProcessMessages(HWND window)
 			case WM_KEYDOWN:
 			case WM_KEYUP:
 			{
+				if (!input) return;
+
 				bool isDown = (msg.message == WM_KEYDOWN);
 				switch (msg.wParam)
 				{
-					case VK_UP:    break;
-					case VK_DOWN:  break;
-					case VK_LEFT:  break;
-					case VK_RIGHT: break;
+					case VK_UP:    Win32UpdateKey(&input->key_up, isDown);    break;
+					case VK_DOWN:  Win32UpdateKey(&input->key_down, isDown);  break;
+					case VK_LEFT:  Win32UpdateKey(&input->key_left, isDown);  break;
+					case VK_RIGHT: Win32UpdateKey(&input->key_right, isDown); break;
 
-					case '1': break;
-					case '2': break;
-					case '3': break;
-					case '4': break;
+					case '1': Win32UpdateKey(&input->key_1, isDown); break;
+					case '2': Win32UpdateKey(&input->key_2, isDown); break;
+					case '3': Win32UpdateKey(&input->key_3, isDown); break;
+					case '4': Win32UpdateKey(&input->key_4, isDown); break;
 
-					case 'Q': break;
-					case 'W': break;
-					case 'E': break;
-					case 'R': break;
+					case 'Q': Win32UpdateKey(&input->key_q, isDown); break;
+					case 'W': Win32UpdateKey(&input->key_w, isDown); break;
+					case 'E': Win32UpdateKey(&input->key_e, isDown); break;
+					case 'R': Win32UpdateKey(&input->key_r, isDown); break;
 
-					case 'A': break;
-					case 'S': break;
-					case 'D': break;
-					case 'F': break;
+					case 'A': Win32UpdateKey(&input->key_a, isDown); break;
+					case 'S': Win32UpdateKey(&input->key_s, isDown); break;
+					case 'D': Win32UpdateKey(&input->key_d, isDown); break;
+					case 'F': Win32UpdateKey(&input->key_f, isDown); break;
 
-					case 'Z': break;
-					case 'X': break;
-					case 'C': break;
-					case 'V': break;
+					case 'Z': Win32UpdateKey(&input->key_z, isDown); break;
+					case 'X': Win32UpdateKey(&input->key_x, isDown); break;
+					case 'C': Win32UpdateKey(&input->key_c, isDown); break;
+					case 'V': Win32UpdateKey(&input->key_v, isDown); break;
 
 					case VK_ESCAPE:
 					{
@@ -137,7 +149,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 	// Main Loop Config
 	const f32 TARGET_FRAMES_PER_S = 60.0f;
 	f32 targetSecondsPerFrame     = 1 / TARGET_FRAMES_PER_S;
-	f64 frameTimeInS              = 0.0f;
 
 	// Window Config
 	const char WINDOW_TITLE_A[] = u8"LearnOpenGL";
@@ -242,8 +253,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		////////////////////////////////////////////////////////////////////////
 		// Load WGL Functions For Creating Modern OGL Windows
 		////////////////////////////////////////////////////////////////////////
-		PFNWGLCHOOSEPIXELFORMATARBPROC    wglChoosePixelFormatARB    = (PFNWGLCHOOSEPIXELFORMATARBPROC)   (wglGetProcAddress("wglChoosePixelFormatARB"));
-		PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)(wglGetProcAddress("wglCreateContextAttribsARB"));
+		WglChoosePixelFormatARBProc    *wglChoosePixelFormatARB    = (WglChoosePixelFormatARBProc *)  (wglGetProcAddress("wglChoosePixelFormatARB"));
+		WglCreateContextAttribsARBProc *wglCreateContextAttribsARB = (WglCreateContextAttribsARBProc *)(wglGetProcAddress("wglCreateContextAttribsARB"));
 		{
 			if (!wglChoosePixelFormatARB)
 			{
@@ -320,7 +331,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 				return -1;
 			}
 
-			const i32 OGL_MAJOR_MIN = 4, OGL_MINOR_MIN = 5;
+			const i32 OGL_MAJOR_MIN = 3, OGL_MINOR_MIN = 3;
 			const i32 CONTEXT_ATTRIBS[] = {WGL_CONTEXT_MAJOR_VERSION_ARB, OGL_MAJOR_MIN,
 			                               WGL_CONTEXT_MINOR_VERSION_ARB, OGL_MINOR_MIN,
 			                               WGL_CONTEXT_PROFILE_MASK_ARB,  WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
@@ -348,22 +359,132 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 			ReleaseDC(mainWindow, deviceContext);
 			// TODO(doyle): Load all the OGL function pointers we need
 		}
+
+		glViewport(0, 0, BUFFER_WIDTH, BUFFER_HEIGHT);
 	}
+
+	GLGenBuffersProc *glGenBuffers = (GLGenBuffersProc *)(wglGetProcAddress("glGenBuffers"));
+	GLBindBufferProc *glBindBuffer = (GLBindBufferProc *)(wglGetProcAddress("glBindBuffer"));
+	GLBufferDataProc *glBufferData = (GLBufferDataProc *)(wglGetProcAddress("glBufferData"));
+
+	GLCreateShaderProc      *glCreateShader      = (GLCreateShaderProc      *)(wglGetProcAddress("glCreateShader"));
+	GLShaderSourceProc      *glShaderSource      = (GLShaderSourceProc      *)(wglGetProcAddress("glShaderSource"));
+	GLCompileShaderProc     *glCompileShader     = (GLCompileShaderProc     *)(wglGetProcAddress("glCompileShader"));
+	GLGetShaderIVProc       *glGetShaderiv       = (GLGetShaderIVProc       *)(wglGetProcAddress("glGetShaderiv"));
+	GLGetShaderInfoLogProc  *glGetShaderInfoLog  = (GLGetShaderInfoLogProc  *)(wglGetProcAddress("glGetShaderInfoLog"));
+	GLCreateProgramProc     *glCreateProgram     = (GLCreateProgramProc     *)(wglGetProcAddress("glCreateProgram"));
+	GLAttachShaderProc      *glAttachShader      = (GLAttachShaderProc      *)(wglGetProcAddress("glAttachShader"));
+	GLLinkProgramProc       *glLinkProgram       = (GLLinkProgramProc       *)(wglGetProcAddress("glLinkProgram"));
+	GLUseProgramProc        *glUseProgram        = (GLUseProgramProc        *)(wglGetProcAddress("glUseProgram"));
+	GLDeleteShaderProc      *glDeleteShader      = (GLDeleteShaderProc      *)(wglGetProcAddress("glDeleteShader"));
+	GLGetProgramInfoLogProc *glGetProgramInfoLog = (GLGetProgramInfoLogProc *)(wglGetProcAddress("glGetProgramInfoLog"));
+	GLGetProgramIVProc      *glGetProgramiv      = (GLGetProgramIVProc      *)(wglGetProcAddress("glGetProgramiv"));
+
+	GLEnableVertexAttribArrayProc  *glEnableVertexAttribArray  = (GLEnableVertexAttribArrayProc  *)(wglGetProcAddress("glEnableVertexAttribArray"));
+	// GLDisableVertexAttribArrayProc *glDisableVertexAttribArray = (GLDisableVertexAttribArrayProc *)(wglGetProcAddress("glDisableVertexAttribArray"));
+	GLVertexAttribPointerProc      *glVertexAttribPointer      = (GLVertexAttribPointerProc      *)(wglGetProcAddress("glVertexAttribPointer"));
+
+	GLGenVertexArraysProc *glGenVertexArrays = (GLGenVertexArraysProc *)(wglGetProcAddress("glGenVertexArrays"));
+	GLBindVertexArrayProc *glBindVertexArray = (GLBindVertexArrayProc *)(wglGetProcAddress("glBindVertexArray"));
+
+	f64 frameTimeInS    = 0.0f;
+	PlatformInput input = {};
+
+	char *vertexShaderSrc = R"DQN(
+	    #version 330 core
+	    layout(location = 0) in vec3 aPos;
+	    void main()
+	    {
+	         gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0f);
+	    }
+	)DQN";
+
+	u32 vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vertexShader, 1, &vertexShaderSrc, NULL);
+	glCompileShader(vertexShader);
+
+	i32 success;
+	char infoLog[512] = {};
+	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+
+	if (!success)
+	{
+		glGetShaderInfoLog(vertexShader, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
+		DQN_ASSERT_HARD(DQN_INVALID_CODE_PATH);
+	}
+
+	char *fragmentShaderSrc = R"DQN(
+	    #version 330 core
+	    out vec4 FragColor;
+	    void main()
+	    {
+	         FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+	    }
+	)DQN";
+
+	u32 fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fragmentShader, 1, &fragmentShaderSrc, NULL);
+	glCompileShader(fragmentShader);
+
+	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+
+	if (!success)
+	{
+		glGetShaderInfoLog(fragmentShader, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
+		DQN_ASSERT_HARD(DQN_INVALID_CODE_PATH);
+	}
+
+	u32 shaderProgram = glCreateProgram();
+	glAttachShader(shaderProgram, vertexShader);
+	glAttachShader(shaderProgram, fragmentShader);
+	glLinkProgram(shaderProgram);
+
+	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+	if (!success)
+	{
+		glGetProgramInfoLog(shaderProgram, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
+		DQN_ASSERT_HARD(DQN_INVALID_CODE_PATH);
+	}
+
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+
+	u32 vao;
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
+	u32 vbo;
+	glGenBuffers(1, &vbo);
+
+	f32 vertices[] = {-0.5f, -0.5f, 0.0f, 0.5f, -0.5f, 0.0f, 0.0f, 0.5f, 0.0f};
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	const u32 vertexInLocation = 0;
+	GLboolean isNormalised     = GL_FALSE;
+	const u32 stride           = sizeof(f32) * 3;
+	glVertexAttribPointer(vertexInLocation,  3, GL_FLOAT, isNormalised, stride, NULL);
+	glEnableVertexAttribArray(0);
+
+	glUseProgram(shaderProgram);
 
 	while (globalRunning)
 	{
 		f64 startFrameTimeInS = DqnTimer_NowInS();
-		Win32ProcessMessages(mainWindow);
+		input.deltaForFrame   = (f32)frameTimeInS;
+		Win32ProcessInputSeparately(mainWindow, &input);
 
 		////////////////////////////////////////////////////////////////////////
 		// Rendering
 		////////////////////////////////////////////////////////////////////////
+		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+
 		if (1)
 		{
 			HDC deviceContext = GetDC(mainWindow);
-			glViewport(0, 0, BUFFER_WIDTH, BUFFER_HEIGHT);
-			glClearColor(1.0f, 0.0f, 1.0f, 0.0f);
-			glClear(GL_COLOR_BUFFER_BIT);
 			SwapBuffers(deviceContext);
 			ReleaseDC(mainWindow, deviceContext);
 		}

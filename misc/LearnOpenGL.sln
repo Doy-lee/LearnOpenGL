@@ -3,12 +3,12 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26403.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "Win32", "..\bin\Win32.exe", "{ECCEBFEA-1298-4983-B287-A32C3C228988}"
+Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "LearnOpenGL", "..\bin\LearnOpenGL.exe", "{029C2351-C8DF-4E04-B376-C354D0651991}"
 	ProjectSection(DebuggerProjectSystem) = preProject
 		PortSupplier = 00000000-0000-0000-0000-000000000000
-		Executable = C:\git\Dengine2\bin\Win32.exe
+		Executable = C:\git\LearnOpenGL\bin\LearnOpenGL.exe
 		RemoteMachine = THAI-PC
-		StartingDirectory = C:\git\Dengine2\bin
+		StartingDirectory = C:\git\LearnOpenGL\bin
 		Environment = Default
 		LaunchingEngine = 00000000-0000-0000-0000-000000000000
 		UseLegacyDebugEngines = No
@@ -21,7 +21,7 @@ Global
 		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{ECCEBFEA-1298-4983-B287-A32C3C228988}.Release|x64.ActiveCfg = Release|x64
+		{029C2351-C8DF-4E04-B376-C354D0651991}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

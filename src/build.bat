@@ -28,7 +28,7 @@ if %errorlevel%==0 (
 	ctime -begin ..\src\%ProjectName%.ctm
 )
 
-set ProjectName=dengine2
+set ProjectName=LearnOpenGL
 
 IF NOT EXIST ..\bin mkdir ..\bin
 pushd ..\bin
@@ -49,7 +49,7 @@ REM wd4189 local variable is initialised but not referenced
 REM wd4505 unreferenced local function not used will be removed
 set CompileFlags=-EHha- -GR- -Oi -Z7 -W4 -WX -wd4201 -wd4505 -FAsc
 set DLLFlags=/Fm%ProjectName% /Fo%ProjectName% /Fa%ProjectName% /Fe%ProjectName%
-set Win32Flags=/FmWin32 /FeWin32
+set Win32Flags=/Fm%ProjectName% /Fo%ProjectName% /Fa%ProjectName% /Fe%ProjectName%
 
 REM Link libraries
 set LinkLibraries=user32.lib kernel32.lib gdi32.lib opengl32.lib
