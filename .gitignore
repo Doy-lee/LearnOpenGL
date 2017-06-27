@@ -1,0 +1,11 @@
+tags
+GPATH
+GRTAGS
+GTAGS
+
+*.swp
+*.swo
+bin/
+.vs/
+*.db
+
