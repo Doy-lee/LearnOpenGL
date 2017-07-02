@@ -47,9 +47,9 @@ REM wd4100 unused argument parameters
 REM wd4201 nonstandard extension used: nameless struct/union
 REM wd4189 local variable is initialised but not referenced
 REM wd4505 unreferenced local function not used will be removed
-set CompileFlags=-EHha- -GR- -Oi -Z7 -W4 -WX -wd4201 -wd4505 -FAsc
+set CompileFlags=-EHa- -GR- -Oi -Z7 -W4 -WX -wd4201 -wd4505 -FAsc
 set DLLFlags=/Fm%ProjectName% /Fo%ProjectName% /Fa%ProjectName% /Fe%ProjectName%
-set Win32Flags=/Fm%ProjectName% /Fo%ProjectName% /Fa%ProjectName% /Fe%ProjectName%
+set Win32Flags=/Fm%ProjectName%Win32 /Fo%ProjectName%Win32 /Fa%ProjectName%Win32 /Fe%ProjectName%Win32
 
 REM Link libraries
 set LinkLibraries=user32.lib kernel32.lib gdi32.lib opengl32.lib
@@ -89,9 +89,9 @@ set CleanTime=%time: =0%
 set TimeStamp=%date:~10,4%%date:~7,2%%date:~4,2%_%CleanTime:~0,2%%CleanTime:~3,2%%CleanTime:~6,2%
 
 del *.pdb >NUL 2>NUL
-cl %CompileFlags% %Win32Flags% ..\src\Win32.cpp /link %LinkLibraries% %LinkFlags%
+cl %CompileFlags% %Win32Flags% ..\src\UnityBuild.cpp /link %LinkLibraries% %LinkFlags% /out:LearnOpenGLWin32.exe
 REM cl  /P ..\src\Win32.cpp
-REM cl %CompileFlags% %DLLFlags%  ..\src\UnityBuild\UnityBuild.cpp /LD /link /PDB:%ProjectName%_%TimeStamp%.pdb /export:DTR_Update %LinkFlags%
+REM cl %CompileFlags% %DLLFlags%  ..\src\LOGL.cpp /LD /link /PDB:%ProjectName%_%TimeStamp%.pdb %LinkFlags%
 
 popd
 set LastError=%ERRORLEVEL%

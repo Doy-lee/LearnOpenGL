@@ -1,6 +1,7 @@
 #ifndef LOGL_PLATFORM_H
 #define LOGL_PLATFORM_H
 
+#include "OpenGL.h"
 #include "dqn.h"
 
 enum PlatformKey
@@ -33,21 +34,27 @@ enum PlatformKey
 	PlatformKey_Count,
 };
 
-typedef struct PlatformKeyState
+struct PlatformKeyState
 {
 	bool endedDown;
 	u32 halfTransitionCount;
-} PlatformKeyState;
+};
 
-typedef struct PlatformMouse
+struct PlatformMouse
 {
 	i32 x;
 	i32 y;
 	PlatformKeyState leftBtn;
 	PlatformKeyState rightBtn;
-} PlatformMouse;
+};
 
-typedef struct PlatformInput
+struct PlatformMemory
+{
+	DqnMemStack      stack;
+	struct LOGLState *state;
+};
+
+struct PlatformInput
 {
 	f32 deltaForFrame;
 	PlatformMouse mouse;
@@ -86,6 +93,6 @@ typedef struct PlatformInput
 			PlatformKeyState key_v;
 		};
 	};
-} PlatformInput;
+};
 
 #endif

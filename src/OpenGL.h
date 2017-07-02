@@ -61,6 +61,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 // #OGL OpenGL Extension
 ////////////////////////////////////////////////////////////////////////////////
+typedef void glClearColorProc(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
+typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
+
 #ifndef GL_VERSION_1_5
 #define GL_VERSION_1_5 1
 	typedef ptrdiff_t GLsizeiptr;

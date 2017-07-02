@@ -1,6 +1,7 @@
 #define UNICODE
 #define _UNICODE
 
+#include "LOGL.h"
 #include "LOGLPlatform.h"
 #include "OpenGL.h"
 
@@ -407,83 +408,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 	f64 frameTimeInS    = 0.0f;
 	PlatformInput input = {};
 
-	char *vertexShaderSrc = R"DQN(
-	    #version 330 core
-	    layout(location = 0) in vec3 aPos;
-	    void main()
-	    {
-	         gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0f);
-	    }
-	)DQN";
-
-	u32 vertexShader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertexShader, 1, &vertexShaderSrc, NULL);
-	glCompileShader(vertexShader);
-
-	i32 success;
-	char infoLog[512] = {};
-	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-
-	if (!success)
+	PlatformMemory memory = {};
+	if (!DQN_ASSERT_MSG(memory.stack.Init(DQN_MEGABYTE(16), true, 4),
+	                    "Memory could not be initialised."))
 	{
-		glGetShaderInfoLog(vertexShader, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
-		DQN_ASSERT_HARD(DQN_INVALID_CODE_PATH);
+		return -1;
 	}
-
-	char *fragmentShaderSrc = R"DQN(
-	    #version 330 core
-	    out vec4 FragColor;
-	    void main()
-	    {
-	         FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-	    }
-	)DQN";
-
-	u32 fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragmentShader, 1, &fragmentShaderSrc, NULL);
-	glCompileShader(fragmentShader);
-
-	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-
-	if (!success)
-	{
-		glGetShaderInfoLog(fragmentShader, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
-		DQN_ASSERT_HARD(DQN_INVALID_CODE_PATH);
-	}
-
-	u32 shaderProgram = glCreateProgram();
-	glAttachShader(shaderProgram, vertexShader);
-	glAttachShader(shaderProgram, fragmentShader);
-	glLinkProgram(shaderProgram);
-
-	glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-	if (!success)
-	{
-		glGetProgramInfoLog(shaderProgram, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
-		DQN_ASSERT_HARD(DQN_INVALID_CODE_PATH);
-	}
-
-	glDeleteShader(vertexShader);
-	glDeleteShader(fragmentShader);
-
-	u32 vao;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
-	u32 vbo;
-	glGenBuffers(1, &vbo);
-
-	f32 vertices[] = {-0.5f, -0.5f, 0.0f, 0.5f, -0.5f, 0.0f, 0.0f, 0.5f, 0.0f};
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	const u32 vertexInLocation = 0;
-	GLboolean isNormalised     = GL_FALSE;
-	const u32 stride           = sizeof(f32) * 3;
-	glVertexAttribPointer(vertexInLocation,  3, GL_FLOAT, isNormalised, stride, NULL);
-	glEnableVertexAttribArray(0);
-
-	glUseProgram(shaderProgram);
 
 	while (globalRunning)
 	{
@@ -492,13 +422,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		Win32ProcessInputSeparately(mainWindow, &input);
 
 		////////////////////////////////////////////////////////////////////////
-		// Rendering
+		// Update and Render
 		////////////////////////////////////////////////////////////////////////
-		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-
+		LOGL_Update(&input, &memory);
 		if (1)
 		{
 			HDC deviceContext = GetDC(mainWindow);
