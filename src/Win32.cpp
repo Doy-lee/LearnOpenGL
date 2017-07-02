@@ -1,8 +1,8 @@
-#include "LOGLPlatform.h"
-#include "OpenGL.h"
-
 #define UNICODE
 #define _UNICODE
+
+#include "LOGLPlatform.h"
+#include "OpenGL.h"
 
 #define DQN_IMPLEMENTATION
 #define DQN_WIN32_IMPLEMENTATION
@@ -12,7 +12,34 @@
 #include <Windowsx.h> // For GET_X_PARAM()/GET_Y_PARAM() macro
 #include <Psapi.h>    // For GetProcessMemoryInfo()
 
-#include <gl/gl.h>
+wglChoosePixelFormatARBProc    *wglChoosePixelFormatARB;
+wglCreateContextAttribsARBProc *wglCreateContextAttribsARB;
+
+// GL 1.5
+glGenBuffersProc *glGenBuffers;
+glBindBufferProc *glBindBuffer;
+glBufferDataProc *glBufferData;
+
+// GL 2.0
+glCreateShaderProc             *glCreateShader;
+glShaderSourceProc             *glShaderSource;
+glCompileShaderProc            *glCompileShader;
+glGetShaderivProc              *glGetShaderiv;
+glGetShaderInfoLogProc         *glGetShaderInfoLog;
+glCreateProgramProc            *glCreateProgram;
+glAttachShaderProc             *glAttachShader;
+glLinkProgramProc              *glLinkProgram;
+glUseProgramProc               *glUseProgram;
+glDeleteShaderProc             *glDeleteShader;
+glGetProgramInfoLogProc        *glGetProgramInfoLog;
+glGetProgramivProc             *glGetProgramiv;
+glEnableVertexAttribArrayProc  *glEnableVertexAttribArray;
+glDisableVertexAttribArrayProc *glDisableVertexAttribArray;
+glVertexAttribPointerProc      *glVertexAttribPointer;
+
+// GL 3.0
+glGenVertexArraysProc *glGenVertexArrays;
+glBindVertexArrayProc *glBindVertexArray;
 
 FILE_SCOPE bool globalRunning = true;
 
@@ -141,6 +168,13 @@ FILE_SCOPE void Win32ProcessInputSeparately(HWND window, PlatformInput *const in
 	}
 }
 
+#define WIN32_GL_LOAD_FUNCTION(glFunction)                                                         \
+	do                                                                                             \
+	{                                                                                              \
+		glFunction = (glFunction##Proc *)(wglGetProcAddress(#glFunction));                               \
+		DQN_ASSERT(glFunction);                                                                    \
+	} while (0)
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nShowCmd)
 {
 	////////////////////////////////////////////////////////////////////////////
@@ -253,21 +287,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		////////////////////////////////////////////////////////////////////////
 		// Load WGL Functions For Creating Modern OGL Windows
 		////////////////////////////////////////////////////////////////////////
-		WglChoosePixelFormatARBProc    *wglChoosePixelFormatARB    = (WglChoosePixelFormatARBProc *)  (wglGetProcAddress("wglChoosePixelFormatARB"));
-		WglCreateContextAttribsARBProc *wglCreateContextAttribsARB = (WglCreateContextAttribsARBProc *)(wglGetProcAddress("wglCreateContextAttribsARB"));
-		{
-			if (!wglChoosePixelFormatARB)
-			{
-				DqnWin32_DisplayLastError("wglGetProcAddress() failed");
-				return -1;
-			}
-
-			if (!wglCreateContextAttribsARB)
-			{
-				DqnWin32_DisplayLastError("wglGetProcAddress() failed");
-				return -1;
-			}
-		}
+		WIN32_GL_LOAD_FUNCTION(wglChoosePixelFormatARB);
+		WIN32_GL_LOAD_FUNCTION(wglCreateContextAttribsARB);
 
 		////////////////////////////////////////////////////////////////////////
 		// Create Window Using Modern OGL Functions
@@ -357,35 +378,31 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 			}
 
 			ReleaseDC(mainWindow, deviceContext);
-			// TODO(doyle): Load all the OGL function pointers we need
 		}
+
+		WIN32_GL_LOAD_FUNCTION(glGenBuffers);
+		WIN32_GL_LOAD_FUNCTION(glBindBuffer);
+		WIN32_GL_LOAD_FUNCTION(glBufferData);
+		WIN32_GL_LOAD_FUNCTION(glCreateShader);
+		WIN32_GL_LOAD_FUNCTION(glShaderSource);
+		WIN32_GL_LOAD_FUNCTION(glCompileShader);
+		WIN32_GL_LOAD_FUNCTION(glGetShaderiv);
+		WIN32_GL_LOAD_FUNCTION(glGetShaderInfoLog);
+		WIN32_GL_LOAD_FUNCTION(glCreateProgram);
+		WIN32_GL_LOAD_FUNCTION(glAttachShader);
+		WIN32_GL_LOAD_FUNCTION(glLinkProgram);
+		WIN32_GL_LOAD_FUNCTION(glUseProgram);
+		WIN32_GL_LOAD_FUNCTION(glDeleteShader);
+		WIN32_GL_LOAD_FUNCTION(glGetProgramInfoLog);
+		WIN32_GL_LOAD_FUNCTION(glGetProgramiv);
+		WIN32_GL_LOAD_FUNCTION(glEnableVertexAttribArray);
+		WIN32_GL_LOAD_FUNCTION(glDisableVertexAttribArray);
+		WIN32_GL_LOAD_FUNCTION(glVertexAttribPointer);
+		WIN32_GL_LOAD_FUNCTION(glGenVertexArrays);
+		WIN32_GL_LOAD_FUNCTION(glBindVertexArray);
 
 		glViewport(0, 0, BUFFER_WIDTH, BUFFER_HEIGHT);
 	}
-
-	GLGenBuffersProc *glGenBuffers = (GLGenBuffersProc *)(wglGetProcAddress("glGenBuffers"));
-	GLBindBufferProc *glBindBuffer = (GLBindBufferProc *)(wglGetProcAddress("glBindBuffer"));
-	GLBufferDataProc *glBufferData = (GLBufferDataProc *)(wglGetProcAddress("glBufferData"));
-
-	GLCreateShaderProc      *glCreateShader      = (GLCreateShaderProc      *)(wglGetProcAddress("glCreateShader"));
-	GLShaderSourceProc      *glShaderSource      = (GLShaderSourceProc      *)(wglGetProcAddress("glShaderSource"));
-	GLCompileShaderProc     *glCompileShader     = (GLCompileShaderProc     *)(wglGetProcAddress("glCompileShader"));
-	GLGetShaderIVProc       *glGetShaderiv       = (GLGetShaderIVProc       *)(wglGetProcAddress("glGetShaderiv"));
-	GLGetShaderInfoLogProc  *glGetShaderInfoLog  = (GLGetShaderInfoLogProc  *)(wglGetProcAddress("glGetShaderInfoLog"));
-	GLCreateProgramProc     *glCreateProgram     = (GLCreateProgramProc     *)(wglGetProcAddress("glCreateProgram"));
-	GLAttachShaderProc      *glAttachShader      = (GLAttachShaderProc      *)(wglGetProcAddress("glAttachShader"));
-	GLLinkProgramProc       *glLinkProgram       = (GLLinkProgramProc       *)(wglGetProcAddress("glLinkProgram"));
-	GLUseProgramProc        *glUseProgram        = (GLUseProgramProc        *)(wglGetProcAddress("glUseProgram"));
-	GLDeleteShaderProc      *glDeleteShader      = (GLDeleteShaderProc      *)(wglGetProcAddress("glDeleteShader"));
-	GLGetProgramInfoLogProc *glGetProgramInfoLog = (GLGetProgramInfoLogProc *)(wglGetProcAddress("glGetProgramInfoLog"));
-	GLGetProgramIVProc      *glGetProgramiv      = (GLGetProgramIVProc      *)(wglGetProcAddress("glGetProgramiv"));
-
-	GLEnableVertexAttribArrayProc  *glEnableVertexAttribArray  = (GLEnableVertexAttribArrayProc  *)(wglGetProcAddress("glEnableVertexAttribArray"));
-	// GLDisableVertexAttribArrayProc *glDisableVertexAttribArray = (GLDisableVertexAttribArrayProc *)(wglGetProcAddress("glDisableVertexAttribArray"));
-	GLVertexAttribPointerProc      *glVertexAttribPointer      = (GLVertexAttribPointerProc      *)(wglGetProcAddress("glVertexAttribPointer"));
-
-	GLGenVertexArraysProc *glGenVertexArrays = (GLGenVertexArraysProc *)(wglGetProcAddress("glGenVertexArrays"));
-	GLBindVertexArrayProc *glBindVertexArray = (GLBindVertexArrayProc *)(wglGetProcAddress("glBindVertexArray"));
 
 	f64 frameTimeInS    = 0.0f;
 	PlatformInput input = {};

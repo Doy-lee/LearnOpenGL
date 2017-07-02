@@ -90,6 +90,7 @@ set TimeStamp=%date:~10,4%%date:~7,2%%date:~4,2%_%CleanTime:~0,2%%CleanTime:~3,2
 
 del *.pdb >NUL 2>NUL
 cl %CompileFlags% %Win32Flags% ..\src\Win32.cpp /link %LinkLibraries% %LinkFlags%
+REM cl  /P ..\src\Win32.cpp
 REM cl %CompileFlags% %DLLFlags%  ..\src\UnityBuild\UnityBuild.cpp /LD /link /PDB:%ProjectName%_%TimeStamp%.pdb /export:DTR_Update %LinkFlags%
 
 popd

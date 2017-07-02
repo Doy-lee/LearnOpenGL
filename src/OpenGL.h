@@ -1,17 +1,25 @@
 #ifndef OPENGL_H
 #define OPENGL_H
+////////////////////////////////////////////////////////////////////////////////
+// Usage
+////////////////////////////////////////////////////////////////////////////////
+// Copy the GlobalGLFunctions section to your platform layer, removing the
+// extern and define the function pointers at runtime.
 
-#define WIN32_LEAN_AND_MEAN 1
-#include <Windows.h>
-#include <gl/gl.h>
-
+////////////////////////////////////////////////////////////////////////////////
 // #TOC Table Of Contents
-// #WGL WindowsGL Extension
-// #OGL OpenGL Extension
+////////////////////////////////////////////////////////////////////////////////
+// #WGL               WindowsGL Extension Definitions
+// #OGL               OpenGL Extension Definitions
+// #GlobalGLFunctions Exposed public function pointers
 
 ////////////////////////////////////////////////////////////////////////////////
 // #WGL Windows GL Extension
 ////////////////////////////////////////////////////////////////////////////////
+#define WIN32_LEAN_AND_MEAN 1
+#include <Windows.h>
+#include <gl/gl.h>
+
 #define WGL_WGLEXT_VERSION 20170613
 #ifndef WGL_ARB_create_context_profile
 #define WGL_ARB_create_context_profile 1
@@ -34,7 +42,7 @@
 	#define WGL_STENCIL_BITS_ARB              0x2023
 	#define WGL_TYPE_RGBA_ARB                 0x202B
 	#define WGL_FULL_ACCELERATION_ARB         0x2027
-	typedef BOOL WglChoosePixelFormatARBProc(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
+	typedef BOOL wglChoosePixelFormatARBProc(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
 #endif /* WGL_ARB_pixel_format */
 
 #ifndef WGL_ARB_multisample
@@ -47,7 +55,7 @@
 #define WGL_ARB_create_context 1
 	#define WGL_CONTEXT_MAJOR_VERSION_ARB     0x2091
 	#define WGL_CONTEXT_MINOR_VERSION_ARB     0x2092
-	typedef HGLRC WglCreateContextAttribsARBProc(HDC hDC, HGLRC hShareContext, const int *attribList);
+	typedef HGLRC wglCreateContextAttribsARBProc(HDC hDC, HGLRC hShareContext, const int *attribList);
 #endif /* WGL_ARGB_create_context */
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,9 +71,9 @@
 	#define GL_DYNAMIC_DRAW                   0x88E8
 	#define GL_ARRAY_BUFFER                   0x8892
 
-	typedef void GLGenBuffersProc(GLsizei n, GLuint *buffers);
-	typedef void GLBindBufferProc(GLenum target, GLuint buffer);
-	typedef void GLBufferDataProc(GLenum target, GLsizeiptr size, const void *data, GLenum usage);
+	typedef void glGenBuffersProc(GLsizei n, GLuint *buffers);
+	typedef void glBindBufferProc(GLenum target, GLuint buffer);
+	typedef void glBufferDataProc(GLenum target, GLsizeiptr size, const void *data, GLenum usage);
 #endif /* GL_VERSION_1_5 */
 
 #ifndef GL_VERSION_2_0
@@ -77,28 +85,64 @@
 	#define GL_COMPILE_STATUS                 0x8B81
 	#define GL_LINK_STATUS                    0x8B82
 
-	typedef GLuint GLCreateShaderProc     (GLenum type);
-	typedef void   GLShaderSourceProc     (GLuint shader, GLsizei count, GLchar **string, const GLint *length);
-	typedef void   GLCompileShaderProc    (GLuint shader);
-	typedef void   GLGetShaderIVProc      (GLuint shader, GLenum pname, GLint *params);
-	typedef void   GLGetShaderInfoLogProc (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
-	typedef GLuint GLCreateProgramProc    (void);
-	typedef void   GLAttachShaderProc     (GLuint program, GLuint shader);
-	typedef void   GLLinkProgramProc      (GLuint program);
-	typedef void   GLUseProgramProc       (GLuint program);
-	typedef void   GLDeleteShaderProc     (GLuint shader);
-	typedef void   GLGetProgramInfoLogProc(GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
-	typedef void   GLGetProgramIVProc     (GLuint program, GLenum pname, GLint *params);
+	typedef GLuint glCreateShaderProc     (GLenum type);
+	typedef void   glShaderSourceProc     (GLuint shader, GLsizei count, GLchar **string, const GLint *length);
+	typedef void   glCompileShaderProc    (GLuint shader);
+	typedef void   glGetShaderivProc      (GLuint shader, GLenum pname, GLint *params);
+	typedef void   glGetShaderInfoLogProc (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+	typedef GLuint glCreateProgramProc    (void);
+	typedef void   glAttachShaderProc     (GLuint program, GLuint shader);
+	typedef void   glLinkProgramProc      (GLuint program);
+	typedef void   glUseProgramProc       (GLuint program);
+	typedef void   glDeleteShaderProc     (GLuint shader);
+	typedef void   glGetProgramInfoLogProc(GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+	typedef void   glGetProgramivProc     (GLuint program, GLenum pname, GLint *params);
 
-	typedef void GLEnableVertexAttribArrayProc (GLuint index);
-	typedef void GLDisableVertexAttribArrayProc(GLuint index);
-	typedef void GLVertexAttribPointerProc     (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
+	typedef void glEnableVertexAttribArrayProc (GLuint index);
+	typedef void glDisableVertexAttribArrayProc(GLuint index);
+	typedef void glVertexAttribPointerProc     (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
 #endif /* GL_VERSION_2_0 */
 
 #ifndef GL_VERSION_3_0
 #define GL_VERSION_3_0 1
 	typedef unsigned short GLhalf;
-	typedef void GLGenVertexArraysProc(GLsizei n, GLuint *arrays);
-	typedef void GLBindVertexArrayProc(GLuint array);
+	typedef void glGenVertexArraysProc(GLsizei n, GLuint *arrays);
+	typedef void glBindVertexArrayProc(GLuint array);
 #endif /* GL_VERSION_3_0 */
+
+////////////////////////////////////////////////////////////////////////////////
+// #GlobalGLFunctions
+////////////////////////////////////////////////////////////////////////////////
+// Copy the following definitions to the platform layer and link to your OpenGL
+// functions at runtime.
+
+// WinGL
+extern wglChoosePixelFormatARBProc    *wglChoosePixelFormatARB;
+extern wglCreateContextAttribsARBProc *wglCreateContextAttribsARB;
+
+// GL 1.5
+extern glGenBuffersProc *glGenBuffers;
+extern glBindBufferProc *glBindBuffer;
+extern glBufferDataProc *glBufferData;
+
+// GL 2.0
+extern glCreateShaderProc             *glCreateShader;
+extern glShaderSourceProc             *glShaderSource;
+extern glCompileShaderProc            *glCompileShader;
+extern glGetShaderivProc              *glGetShaderiv;
+extern glGetShaderInfoLogProc         *glGetShaderInfoLog;
+extern glCreateProgramProc            *glCreateProgram;
+extern glAttachShaderProc             *glAttachShader;
+extern glLinkProgramProc              *glLinkProgram;
+extern glUseProgramProc               *glUseProgram;
+extern glDeleteShaderProc             *glDeleteShader;
+extern glGetProgramInfoLogProc        *glGetProgramInfoLog;
+extern glGetProgramivProc             *glGetProgramiv;
+extern glEnableVertexAttribArrayProc  *glEnableVertexAttribArray;
+extern glDisableVertexAttribArrayProc *glDisableVertexAttribArray;
+extern glVertexAttribPointerProc      *glVertexAttribPointer;
+
+// GL 3.0
+extern glGenVertexArraysProc *glGenVertexArrays;
+extern glBindVertexArrayProc *glBindVertexArray;
 #endif // OPENGL_H
