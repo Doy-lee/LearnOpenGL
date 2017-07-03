@@ -6,6 +6,7 @@
 #include "OpenGL.h"
 
 #define DQN_IMPLEMENTATION
+#define DQN_PLATFORM_HEADER
 #define DQN_WIN32_IMPLEMENTATION
 #include "dqn.h"
 
@@ -34,6 +35,10 @@ glUseProgramProc               *glUseProgram;
 glDeleteShaderProc             *glDeleteShader;
 glGetProgramInfoLogProc        *glGetProgramInfoLog;
 glGetProgramivProc             *glGetProgramiv;
+
+glGetUniformLocationProc       *glGetUniformLocation;
+glUniform4fProc                *glUniform4f;
+
 glEnableVertexAttribArrayProc  *glEnableVertexAttribArray;
 glDisableVertexAttribArrayProc *glDisableVertexAttribArray;
 glVertexAttribPointerProc      *glVertexAttribPointer;
@@ -396,9 +401,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		WIN32_GL_LOAD_FUNCTION(glDeleteShader);
 		WIN32_GL_LOAD_FUNCTION(glGetProgramInfoLog);
 		WIN32_GL_LOAD_FUNCTION(glGetProgramiv);
+
+		WIN32_GL_LOAD_FUNCTION(glGetUniformLocation);
+		WIN32_GL_LOAD_FUNCTION(glUniform4f);
+
 		WIN32_GL_LOAD_FUNCTION(glEnableVertexAttribArray);
 		WIN32_GL_LOAD_FUNCTION(glDisableVertexAttribArray);
 		WIN32_GL_LOAD_FUNCTION(glVertexAttribPointer);
+
 		WIN32_GL_LOAD_FUNCTION(glGenVertexArrays);
 		WIN32_GL_LOAD_FUNCTION(glBindVertexArray);
 

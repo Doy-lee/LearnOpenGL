@@ -1,8 +1,11 @@
 #include "LOGL.h"
 #include "LOGLPlatform.h"
 #include "OpenGL.h"
+
+#define DQN_PLATFORM_HEADER
 #include "dqn.h"
 
+#include <math.h>
 enum ShaderTypeInternal
 {
 	ShaderTypeInternal_Invalid,
@@ -55,27 +58,30 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			char *vertexShaderSrc = R"DQN(
 			#version 330 core
 			layout(location = 0) in vec3 aPos;
+			layout(location = 1) in vec3 aColor;
+
+			out vec3 vertexColor;
 			void main()
 			{
 			    gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0f);
+				vertexColor = aColor;
 			}
 			)DQN";
 
 			char *fragmentShaderSrc = R"DQN(
 			#version 330 core
-			out vec4 FragColor;
+			out vec4 fragColor;
+			in  vec3 vertexColor;
+
 			void main()
 			{
-			    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+			    fragColor = vec4(vertexColor, 1.0);
 			}
 			)DQN";
 
 			bool success = OpenGL_CompileShader(vertexShaderSrc,   &vertexShader,   ShaderTypeInternal_Vertex);
 			success     |= OpenGL_CompileShader(fragmentShaderSrc, &fragmentShader, ShaderTypeInternal_Fragment);
-			if (!DQN_ASSERT_MSG(success, "OpenGL_CompileShader() failed."))
-			{
-				return;
-			}
+			if (!DQN_ASSERT_MSG(success, "OpenGL_CompileShader() failed.")) return;
 		}
 
 		// Link shaders
@@ -103,29 +109,53 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 		// Init geometry
 		{
-			u32 vao;
-			glGenVertexArrays(1, &vao);
-			glBindVertexArray(vao);
+			glGenVertexArrays(1, &state->vao);
+			glBindVertexArray(state->vao);
 
-			u32 vbo;
-			glGenBuffers(1, &vbo);
+			f32 vertices[] = {
+			    // positions        // colors
+			     0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom right
+			    -0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, // bottom left
+			     0.0f,  0.5f, 0.0f, 0.0f, 0.0f, 1.0f  // top
+			};
 
-			f32 vertices[] = {-0.5f, -0.5f, 0.0f, 0.5f, -0.5f, 0.0f, 0.0f, 0.5f, 0.0f};
-			glBindBuffer(GL_ARRAY_BUFFER, vbo);
+			// Copy vertices into a vertex buffer and upload to GPU
+			glGenBuffers(1, &state->vbo);
+			glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-			const u32 vertexInLocation = 0;
-			GLboolean isNormalised     = GL_FALSE;
-			const u32 stride           = sizeof(f32) * 3;
-			glVertexAttribPointer(vertexInLocation, 3, GL_FLOAT, isNormalised, stride, NULL);
-			glEnableVertexAttribArray(0);
+			// Describe the vertex layout for OpenGL
+			{
+				const u32 numPosComponents   = 3;
+				const u32 numColorComponents = 3;
+				const u32 stride       = sizeof(f32) * (numPosComponents + numColorComponents);
+				GLboolean isNormalised = GL_FALSE;
+
+				// Set the vertex attributes pointer for pos
+				{
+					const u32 vertexShaderPosIn = 0;
+					glVertexAttribPointer(vertexShaderPosIn, numPosComponents, GL_FLOAT, isNormalised, stride, NULL);
+					glEnableVertexAttribArray(vertexShaderPosIn);
+				}
+
+				// Set the vertex attributes pointer for color
+				{
+					const u32 vertexShaderColorIn = 1;
+					void *vertexShaderColorOffset = (void *)(numPosComponents * sizeof(f32));
+					glVertexAttribPointer(vertexShaderColorIn, numColorComponents, GL_FLOAT, isNormalised, stride, vertexShaderColorOffset);
+					glEnableVertexAttribArray(vertexShaderColorIn);
+				}
+			}
 		}
 	}
 	LOGLState *state = memory->state;
 
-	glUseProgram(state->glShaderProgram);
 	glClearColor(0.5f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	glUseProgram(state->glShaderProgram);
+	glBindVertexArray(state->vao);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 
 	(void)input;

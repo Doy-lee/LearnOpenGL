@@ -73,6 +73,7 @@ typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
 	#define GL_STATIC_DRAW                    0x88E4
 	#define GL_DYNAMIC_DRAW                   0x88E8
 	#define GL_ARRAY_BUFFER                   0x8892
+	#define GL_ELEMENT_ARRAY_BUFFER           0x8893
 
 	typedef void glGenBuffersProc(GLsizei n, GLuint *buffers);
 	typedef void glBindBufferProc(GLenum target, GLuint buffer);
@@ -88,18 +89,21 @@ typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
 	#define GL_COMPILE_STATUS                 0x8B81
 	#define GL_LINK_STATUS                    0x8B82
 
-	typedef GLuint glCreateShaderProc     (GLenum type);
-	typedef void   glShaderSourceProc     (GLuint shader, GLsizei count, GLchar **string, const GLint *length);
-	typedef void   glCompileShaderProc    (GLuint shader);
-	typedef void   glGetShaderivProc      (GLuint shader, GLenum pname, GLint *params);
-	typedef void   glGetShaderInfoLogProc (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
-	typedef GLuint glCreateProgramProc    (void);
-	typedef void   glAttachShaderProc     (GLuint program, GLuint shader);
-	typedef void   glLinkProgramProc      (GLuint program);
-	typedef void   glUseProgramProc       (GLuint program);
-	typedef void   glDeleteShaderProc     (GLuint shader);
-	typedef void   glGetProgramInfoLogProc(GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
-	typedef void   glGetProgramivProc     (GLuint program, GLenum pname, GLint *params);
+	typedef GLuint glCreateShaderProc      (GLenum type);
+	typedef void   glShaderSourceProc      (GLuint shader, GLsizei count, GLchar **string, const GLint *length);
+	typedef void   glCompileShaderProc     (GLuint shader);
+	typedef void   glGetShaderivProc       (GLuint shader, GLenum pname, GLint *params);
+	typedef void   glGetShaderInfoLogProc  (GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+	typedef GLuint glCreateProgramProc     (void);
+	typedef void   glAttachShaderProc      (GLuint program, GLuint shader);
+	typedef void   glLinkProgramProc       (GLuint program);
+	typedef void   glUseProgramProc        (GLuint program);
+	typedef void   glDeleteShaderProc      (GLuint shader);
+	typedef void   glGetProgramInfoLogProc (GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
+	typedef void   glGetProgramivProc      (GLuint program, GLenum pname, GLint *params);
+
+	typedef GLint  glGetUniformLocationProc(GLuint program, const GLchar *name);
+	typedef void   glUniform4fProc         (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 
 	typedef void glEnableVertexAttribArrayProc (GLuint index);
 	typedef void glDisableVertexAttribArrayProc(GLuint index);
@@ -141,6 +145,10 @@ extern glUseProgramProc               *glUseProgram;
 extern glDeleteShaderProc             *glDeleteShader;
 extern glGetProgramInfoLogProc        *glGetProgramInfoLog;
 extern glGetProgramivProc             *glGetProgramiv;
+
+extern glGetUniformLocationProc       *glGetUniformLocation;
+extern glUniform4fProc                *glUniform4f;
+
 extern glEnableVertexAttribArrayProc  *glEnableVertexAttribArray;
 extern glDisableVertexAttribArrayProc *glDisableVertexAttribArray;
 extern glVertexAttribPointerProc      *glVertexAttribPointer;

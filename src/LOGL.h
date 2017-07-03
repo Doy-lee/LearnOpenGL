@@ -8,7 +8,10 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 struct LOGLState
 {
 	u32 glShaderProgram;
-	bool test;
+	u32 vao;
+	u32 vbo;
+
+	u32 ebo;
 };
 
 #endif
