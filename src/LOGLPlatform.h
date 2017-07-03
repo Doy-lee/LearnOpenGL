@@ -50,7 +50,8 @@ struct PlatformMouse
 
 struct PlatformMemory
 {
-	DqnMemStack      stack;
+	DqnMemStack      mainStack;
+	DqnMemStack      tempStack;
 	struct LOGLState *state;
 };
 

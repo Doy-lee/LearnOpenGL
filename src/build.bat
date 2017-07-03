@@ -90,7 +90,7 @@ set TimeStamp=%date:~10,4%%date:~7,2%%date:~4,2%_%CleanTime:~0,2%%CleanTime:~3,2
 
 del *.pdb >NUL 2>NUL
 cl %CompileFlags% %Win32Flags% ..\src\UnityBuild.cpp /link %LinkLibraries% %LinkFlags% /out:LearnOpenGLWin32.exe
-REM cl  /P ..\src\Win32.cpp
+REM cl  /P ..\src\UnityBuild.cpp
 REM cl %CompileFlags% %DLLFlags%  ..\src\LOGL.cpp /LD /link /PDB:%ProjectName%_%TimeStamp%.pdb %LinkFlags%
 
 popd

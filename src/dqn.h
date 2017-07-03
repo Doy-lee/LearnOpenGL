@@ -69,6 +69,7 @@
 // - DqnMemStack
 //   - Allow 0 size memblock stack initialisation/block-less stack for situations where you don't
 //     care about specifying a size upfront
+//   - Default block size for when new blocks are required
 //
 // - Win32
 //   - Get rid of reliance on MAX_PATH

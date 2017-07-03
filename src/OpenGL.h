@@ -64,6 +64,44 @@
 typedef void glClearColorProc(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
 typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
 
+#ifndef GL_VERSION_1_3
+#define GL_VERSION_1_3 1
+    #define GL_TEXTURE0                       0x84C0
+    #define GL_TEXTURE1                       0x84C1
+    #define GL_TEXTURE2                       0x84C2
+    #define GL_TEXTURE3                       0x84C3
+    #define GL_TEXTURE4                       0x84C4
+    #define GL_TEXTURE5                       0x84C5
+    #define GL_TEXTURE6                       0x84C6
+    #define GL_TEXTURE7                       0x84C7
+    #define GL_TEXTURE8                       0x84C8
+    #define GL_TEXTURE9                       0x84C9
+    #define GL_TEXTURE10                      0x84CA
+    #define GL_TEXTURE11                      0x84CB
+    #define GL_TEXTURE12                      0x84CC
+    #define GL_TEXTURE13                      0x84CD
+    #define GL_TEXTURE14                      0x84CE
+    #define GL_TEXTURE15                      0x84CF
+    #define GL_TEXTURE16                      0x84D0
+    #define GL_TEXTURE17                      0x84D1
+    #define GL_TEXTURE18                      0x84D2
+    #define GL_TEXTURE19                      0x84D3
+    #define GL_TEXTURE20                      0x84D4
+    #define GL_TEXTURE21                      0x84D5
+    #define GL_TEXTURE22                      0x84D6
+    #define GL_TEXTURE23                      0x84D7
+    #define GL_TEXTURE24                      0x84D8
+    #define GL_TEXTURE25                      0x84D9
+    #define GL_TEXTURE26                      0x84DA
+    #define GL_TEXTURE27                      0x84DB
+    #define GL_TEXTURE28                      0x84DC
+    #define GL_TEXTURE29                      0x84DD
+    #define GL_TEXTURE30                      0x84DE
+    #define GL_TEXTURE31                      0x84DF
+
+    typedef void glActiveTextureProc(GLenum texture);
+#endif /* GL_VERSION_1_3 */
+
 #ifndef GL_VERSION_1_5
 #define GL_VERSION_1_5 1
 	typedef ptrdiff_t GLsizeiptr;
@@ -104,8 +142,9 @@ typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
 
 	typedef GLint  glGetUniformLocationProc(GLuint program, const GLchar *name);
 	typedef void   glUniform4fProc         (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+    typedef void   glUniform1iProc         (GLint location, GLint v0);
 
-	typedef void glEnableVertexAttribArrayProc (GLuint index);
+    typedef void glEnableVertexAttribArrayProc (GLuint index);
 	typedef void glDisableVertexAttribArrayProc(GLuint index);
 	typedef void glVertexAttribPointerProc     (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
 #endif /* GL_VERSION_2_0 */
@@ -115,6 +154,7 @@ typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
 	typedef unsigned short GLhalf;
 	typedef void glGenVertexArraysProc(GLsizei n, GLuint *arrays);
 	typedef void glBindVertexArrayProc(GLuint array);
+	typedef void glGenerateMipmapProc (GLenum target);
 #endif /* GL_VERSION_3_0 */
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,6 +166,9 @@ typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
 // WinGL
 extern wglChoosePixelFormatARBProc    *wglChoosePixelFormatARB;
 extern wglCreateContextAttribsARBProc *wglCreateContextAttribsARB;
+
+// GL 1.3
+extern glActiveTextureProc *glActiveTexture;
 
 // GL 1.5
 extern glGenBuffersProc *glGenBuffers;
@@ -148,6 +191,7 @@ extern glGetProgramivProc             *glGetProgramiv;
 
 extern glGetUniformLocationProc       *glGetUniformLocation;
 extern glUniform4fProc                *glUniform4f;
+extern glUniform1iProc                *glUniform1i;
 
 extern glEnableVertexAttribArrayProc  *glEnableVertexAttribArray;
 extern glDisableVertexAttribArrayProc *glDisableVertexAttribArray;
@@ -156,4 +200,6 @@ extern glVertexAttribPointerProc      *glVertexAttribPointer;
 // GL 3.0
 extern glGenVertexArraysProc *glGenVertexArrays;
 extern glBindVertexArrayProc *glBindVertexArray;
+extern glGenerateMipmapProc  *glGenerateMipmap;
+
 #endif // OPENGL_H

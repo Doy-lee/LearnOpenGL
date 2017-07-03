@@ -17,6 +17,9 @@
 wglChoosePixelFormatARBProc    *wglChoosePixelFormatARB;
 wglCreateContextAttribsARBProc *wglCreateContextAttribsARB;
 
+// GL 1.3
+glActiveTextureProc *glActiveTexture;
+
 // GL 1.5
 glGenBuffersProc *glGenBuffers;
 glBindBufferProc *glBindBuffer;
@@ -38,6 +41,7 @@ glGetProgramivProc             *glGetProgramiv;
 
 glGetUniformLocationProc       *glGetUniformLocation;
 glUniform4fProc                *glUniform4f;
+glUniform1iProc                *glUniform1i;
 
 glEnableVertexAttribArrayProc  *glEnableVertexAttribArray;
 glDisableVertexAttribArrayProc *glDisableVertexAttribArray;
@@ -46,6 +50,7 @@ glVertexAttribPointerProc      *glVertexAttribPointer;
 // GL 3.0
 glGenVertexArraysProc *glGenVertexArrays;
 glBindVertexArrayProc *glBindVertexArray;
+glGenerateMipmapProc  *glGenerateMipmap;
 
 FILE_SCOPE bool globalRunning = true;
 
@@ -386,6 +391,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 			ReleaseDC(mainWindow, deviceContext);
 		}
 
+		WIN32_GL_LOAD_FUNCTION(glActiveTexture);
+
 		WIN32_GL_LOAD_FUNCTION(glGenBuffers);
 		WIN32_GL_LOAD_FUNCTION(glBindBuffer);
 		WIN32_GL_LOAD_FUNCTION(glBufferData);
@@ -404,6 +411,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
 		WIN32_GL_LOAD_FUNCTION(glGetUniformLocation);
 		WIN32_GL_LOAD_FUNCTION(glUniform4f);
+		WIN32_GL_LOAD_FUNCTION(glUniform1i);
 
 		WIN32_GL_LOAD_FUNCTION(glEnableVertexAttribArray);
 		WIN32_GL_LOAD_FUNCTION(glDisableVertexAttribArray);
@@ -411,6 +419,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
 		WIN32_GL_LOAD_FUNCTION(glGenVertexArrays);
 		WIN32_GL_LOAD_FUNCTION(glBindVertexArray);
+		WIN32_GL_LOAD_FUNCTION(glGenerateMipmap);
 
 		glViewport(0, 0, BUFFER_WIDTH, BUFFER_HEIGHT);
 	}
@@ -419,11 +428,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 	PlatformInput input = {};
 
 	PlatformMemory memory = {};
-	if (!DQN_ASSERT_MSG(memory.stack.Init(DQN_MEGABYTE(16), true, 4),
-	                    "Memory could not be initialised."))
-	{
-		return -1;
-	}
+	bool memInitResult    = (memory.mainStack.Init(DQN_MEGABYTE(16), true, 4) &&
+	                         memory.tempStack.Init(DQN_MEGABYTE(16), true, 4));
+	if (!DQN_ASSERT(memInitResult)) return -1;
 
 	while (globalRunning)
 	{
