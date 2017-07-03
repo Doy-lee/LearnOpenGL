@@ -3145,17 +3145,17 @@ DQN_FILE_SCOPE DqnMat4 DqnMat4_Rotate(f32 radians, f32 x, f32 y, f32 z)
 	f32 cosVal         = cosf(radians);
 	f32 oneMinusCosVal = 1 - cosVal;
 
-	result.e[0][0] = (DQN_SQUARED(x) * oneMinusCosVal) + cosVal;
-	result.e[0][1] = (x * y          * oneMinusCosVal) + (z * sinVal);
-	result.e[0][2] = (x * z          * oneMinusCosVal) - (y * sinVal);
+	result.e[0][0] = (x * x * oneMinusCosVal) + cosVal;
+	result.e[0][1] = (x * y * oneMinusCosVal) + (z * sinVal);
+	result.e[0][2] = (x * z * oneMinusCosVal) - (y * sinVal);
 
-	result.e[1][0] = (y * x          * oneMinusCosVal) - (z * sinVal);
-	result.e[1][1] = (DQN_SQUARED(y) * oneMinusCosVal) + cosVal;
-	result.e[1][2] = (y * z          * oneMinusCosVal) + (x * sinVal);
+	result.e[1][0] = (y * x * oneMinusCosVal) - (z * sinVal);
+	result.e[1][1] = (y * y * oneMinusCosVal) + cosVal;
+	result.e[1][2] = (y * z * oneMinusCosVal) + (x * sinVal);
 
-	result.e[2][0] = (z * x          * oneMinusCosVal) + (y * sinVal);
-	result.e[2][1] = (z * y          * oneMinusCosVal) - (x * sinVal);
-	result.e[2][2] = (DQN_SQUARED(z) * oneMinusCosVal) + cosVal;
+	result.e[2][0] = (z * x * oneMinusCosVal) + (y * sinVal);
+	result.e[2][1] = (z * y * oneMinusCosVal) - (x * sinVal);
+	result.e[2][2] = (z * z * oneMinusCosVal) + cosVal;
 
 	return result;
 }

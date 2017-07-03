@@ -18,6 +18,8 @@ struct LOGLState
 	u32 vbo;
 	u32 ebo;
 
+	u32 shaderTransformLoc;
+
 	u32 glTexIdContainer;
 	u32 glTexIdFace;
 };

@@ -68,11 +68,13 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			layout(location = 1) in vec3 aColor;
 			layout(location = 2) in vec2 aTexCoord;
 
+			uniform mat4 transform;
+
 			out vec3 vertexColor;
 			out vec2 texCoord;
 			void main()
 			{
-			    gl_Position = vec4(aPos, 1.0);
+			    gl_Position = transform * vec4(aPos, 1.0);
 			    vertexColor = aColor;
 			    texCoord    = vec2(aTexCoord.x, aTexCoord.y);
 			}
@@ -132,6 +134,9 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 				glUniform1i(tex1Loc, 0);
 				glUniform1i(tex2Loc, 1);
+
+				state->shaderTransformLoc = glGetUniformLocation(state->glShaderProgram, "transform");
+				DQN_ASSERT(state->shaderTransformLoc != -1);
 			}
 		}
 
@@ -246,6 +251,17 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 	glBindTexture(GL_TEXTURE_2D, state->glTexIdContainer);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, state->glTexIdFace);
+
+	// Make transform matrix
+	{
+		LOCAL_PERSIST f32 rotation = 0;
+		rotation += (input->deltaForFrame * 5.0f);
+
+		DqnMat4 translateMatrix = DqnMat4_Translate(0.5f, -0.5f, 0.0f);
+		DqnMat4 rotateMatrix = DqnMat4_Rotate(DQN_DEGREES_TO_RADIANS(rotation), 0, 0, 1.0f);
+		DqnMat4 transform   = DqnMat4_Mul(translateMatrix, rotateMatrix);
+		glUniformMatrix4fv(state->shaderTransformLoc, 1, GL_FALSE, (f32 *)transform.e);
+	}
 
 	glUseProgram(state->glShaderProgram);
 	glBindVertexArray(state->vao);

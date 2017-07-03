@@ -42,6 +42,7 @@ glGetProgramivProc             *glGetProgramiv;
 glGetUniformLocationProc       *glGetUniformLocation;
 glUniform4fProc                *glUniform4f;
 glUniform1iProc                *glUniform1i;
+glUniformMatrix4fvProc         *glUniformMatrix4fv;
 
 glEnableVertexAttribArrayProc  *glEnableVertexAttribArray;
 glDisableVertexAttribArrayProc *glDisableVertexAttribArray;
@@ -412,6 +413,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		WIN32_GL_LOAD_FUNCTION(glGetUniformLocation);
 		WIN32_GL_LOAD_FUNCTION(glUniform4f);
 		WIN32_GL_LOAD_FUNCTION(glUniform1i);
+		WIN32_GL_LOAD_FUNCTION(glUniformMatrix4fv);
 
 		WIN32_GL_LOAD_FUNCTION(glEnableVertexAttribArray);
 		WIN32_GL_LOAD_FUNCTION(glDisableVertexAttribArray);
