@@ -42,8 +42,8 @@ struct PlatformKeyState
 
 struct PlatformMouse
 {
-	i32 x;
-	i32 y;
+	i32 dx;
+	i32 dy;
 	PlatformKeyState leftBtn;
 	PlatformKeyState rightBtn;
 };

@@ -101,6 +101,9 @@ FILE_SCOPE void Win32ProcessInputSeparately(HWND window, PlatformInput *const in
 {
 	MSG msg;
 	DQN_ASSERT(input);
+	DqnV2 screenDim     = input->screenDim;
+	DqnV2 halfScreenDim = screenDim * 0.5f;
+
 	while (PeekMessage(&msg, window, 0, 0, PM_REMOVE))
 	{
 		switch (msg.message)
@@ -129,9 +132,13 @@ FILE_SCOPE void Win32ProcessInputSeparately(HWND window, PlatformInput *const in
 				PlatformMouse *mouse = &input->mouse;
 
 				LONG height;
-				DqnWin32_GetClientDim(window, NULL, &height);
-				mouse->x = GET_X_LPARAM(msg.lParam);
-				mouse->y = height - GET_Y_LPARAM(msg.lParam);
+				LONG width;
+				DqnWin32_GetClientDim(window, &width, &height);
+				mouse->dx = GET_X_LPARAM(msg.lParam);
+				mouse->dy = height - GET_Y_LPARAM(msg.lParam);
+
+				mouse->dx -= (i32)halfScreenDim.w;
+				mouse->dy -= (i32)halfScreenDim.h;
 			}
 			break;
 
@@ -187,6 +194,17 @@ FILE_SCOPE void Win32ProcessInputSeparately(HWND window, PlatformInput *const in
 				DispatchMessage(&msg);
 			};
 		}
+	}
+
+	// TODO(doyle): Make capturing mouse toggleable.
+	// Reset mouse to center of screen
+	POINT screenCenter = {};
+	screenCenter.x     = (i32)halfScreenDim.w;
+	screenCenter.y     = (i32)halfScreenDim.h;
+
+	if (ClientToScreen(window, &screenCenter))
+	{
+		SetCursorPos(screenCenter.x, screenCenter.y);
 	}
 }
 
@@ -436,6 +454,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		WIN32_GL_LOAD_FUNCTION(glGenerateMipmap);
 
 		glViewport(0, 0, BUFFER_WIDTH, BUFFER_HEIGHT);
+	}
+	
+	// Win32 Configuration
+	{
+		ShowCursor(false);
 	}
 
 	f64 frameTimeInS    = 0.0f;

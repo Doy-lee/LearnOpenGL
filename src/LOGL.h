@@ -43,7 +43,6 @@ struct LOGLState
 	DqnV3 cameraP;
 	f32   cameraYaw;
 	f32   cameraPitch;
-	DqnV2 lastMouseP;
 
 	f32 totalDt;
 };

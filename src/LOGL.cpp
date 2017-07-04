@@ -353,12 +353,12 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 		// Setup GL environment
 		{
 			glEnable(GL_DEPTH_TEST);
+			// glEnable(GL_CULL_FACE);
 		}
 
 		// Setup state
 		{
 			state->cameraP     = DqnV3_3f(0, 0, 3);
-			state->lastMouseP  = DqnV2_2i(input->mouse.x, input->mouse.y);
 			state->cameraYaw   = 0;
 			state->cameraPitch = 0;
 		}
@@ -376,12 +376,8 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 	// Calculate view matrix/camera code
 	if (1)
 	{
-		DqnV2 mouseOffset = DqnV2_2f(input->mouse.x - state->lastMouseP.x, state->lastMouseP.y - input->mouse.y);
-		mouseOffset *= 0.1f;
-		state->lastMouseP = DqnV2_2i(input->mouse.x, input->mouse.y);
-
-		state->cameraYaw -= mouseOffset.x;
-		state->cameraPitch += mouseOffset.y;
+		state->cameraYaw   -= (input->mouse.dx * 0.1f);
+		state->cameraPitch -= (input->mouse.dy * 0.1f);
 		state->cameraPitch = DqnMath_Clampf(state->cameraPitch, -89, 89);
 
 		DqnV3 cameraFront = {};
