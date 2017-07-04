@@ -11,17 +11,26 @@ struct LOGLBitmap
 	i32    bytesPerPixel;
 };
 
-struct LOGLState
+struct LOGLContext
 {
-	u32 glShaderProgram;
+	u32 uniformProjectionLoc;
+	u32 uniformViewLoc;
+	u32 uniformModelLoc;
+
+	u32 shaderId;
+
 	u32 vao;
 	u32 vbo;
 	u32 ebo;
 
-	u32 shaderTransformLoc;
+	u32 texIdContainer;
+	u32 texIdFace;
+};
 
-	u32 glTexIdContainer;
-	u32 glTexIdFace;
+struct LOGLState
+{
+	LOGLContext glContext;
+	f32 totalDt;
 };
 
 void LOGL_Update    (struct PlatformInput *const input, struct PlatformMemory *const memory);

@@ -56,7 +56,8 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 		memory->state = (LOGLState *)memory->mainStack.Push(sizeof(*memory->state));
 		if (!memory->state) return;
 
-		LOGLState *const state = memory->state;
+		LOGLState *const state       = memory->state;
+		LOGLContext *const glContext = &state->glContext;
 
 		// Compile Shaders
 		u32 vertexShader;
@@ -68,13 +69,15 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			layout(location = 1) in vec3 aColor;
 			layout(location = 2) in vec2 aTexCoord;
 
-			uniform mat4 transform;
+			uniform mat4 model;
+			uniform mat4 view;
+			uniform mat4 projection;
 
 			out vec3 vertexColor;
 			out vec2 texCoord;
 			void main()
 			{
-			    gl_Position = transform * vec4(aPos, 1.0);
+			    gl_Position = projection * view * model * vec4(aPos, 1.0);
 			    vertexColor = aColor;
 			    texCoord    = vec2(aTexCoord.x, aTexCoord.y);
 			}
@@ -104,17 +107,17 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 		// Link shaders
 		{
-			state->glShaderProgram = glCreateProgram();
-			glAttachShader(state->glShaderProgram, vertexShader);
-			glAttachShader(state->glShaderProgram, fragmentShader);
-			glLinkProgram(state->glShaderProgram);
+			glContext->shaderId = glCreateProgram();
+			glAttachShader(glContext->shaderId, vertexShader);
+			glAttachShader(glContext->shaderId, fragmentShader);
+			glLinkProgram(glContext->shaderId);
 
 			i32 success;
 			char infoLog[512] = {};
-			glGetProgramiv(state->glShaderProgram, GL_LINK_STATUS, &success);
+			glGetProgramiv(glContext->shaderId, GL_LINK_STATUS, &success);
 			if (!success)
 			{
-				glGetProgramInfoLog(state->glShaderProgram, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
+				glGetProgramInfoLog(glContext->shaderId, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
 				if (!DQN_ASSERT_MSG(DQN_INVALID_CODE_PATH, "glLinkProgram() failed: %s", infoLog))
 				{
 					return;
@@ -126,31 +129,75 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 			// Setup shader uniforms
 			{
-				glUseProgram(state->glShaderProgram);
-				u32 tex1Loc = glGetUniformLocation(state->glShaderProgram, "inTexture1");
-				u32 tex2Loc = glGetUniformLocation(state->glShaderProgram, "inTexture2");
+				glUseProgram(glContext->shaderId);
+				u32 tex1Loc = glGetUniformLocation(glContext->shaderId, "inTexture1");
+				u32 tex2Loc = glGetUniformLocation(glContext->shaderId, "inTexture2");
 				DQN_ASSERT_MSG(tex1Loc != -1 && tex2Loc != -1, "tex1Loc: %d, tex2Loc: %d", tex1Loc,
 				               tex2Loc);
 
 				glUniform1i(tex1Loc, 0);
 				glUniform1i(tex2Loc, 1);
 
-				state->shaderTransformLoc = glGetUniformLocation(state->glShaderProgram, "transform");
-				DQN_ASSERT(state->shaderTransformLoc != -1);
+				glContext->uniformProjectionLoc = glGetUniformLocation(glContext->shaderId, "projection");
+				glContext->uniformViewLoc       = glGetUniformLocation(glContext->shaderId, "view");
+				glContext->uniformModelLoc      = glGetUniformLocation(glContext->shaderId, "model");
+				DQN_ASSERT_MSG((glContext->uniformProjectionLoc != -1 &&
+				                glContext->uniformViewLoc       != -1 &&
+				                glContext->uniformModelLoc      != -1),
+				               "uniformProjectionLoc: %d, uniformViewLoc: %d, uniformModelLoc: %d",
+				               glContext->uniformProjectionLoc, glContext->uniformViewLoc,
+				               glContext->uniformModelLoc);
 			}
 		}
 
 		// Init geometry
 		{
-			glGenVertexArrays(1, &state->vao);
-			glBindVertexArray(state->vao);
+			glGenVertexArrays(1, &glContext->vao);
+			glBindVertexArray(glContext->vao);
 
 			f32 vertices[] = {
-			    // positions         // colors         // texture coords
-			     0.5f,   0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, // top right
-			     0.5f,  -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, // bottom right
-			    -0.5f,  -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom left
-			    -0.5f,   0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f  // top left
+			    // positions          // color  // tex coords
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 0.0f, //
+			     0.5f, -0.5f, -0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
+			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
+			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 0.0f, //
+
+			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
+			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 1.0f, //
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 1.0f, //
+			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
+
+			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
+			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
+			     0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			     0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			     0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			     0.5f, -0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
+			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+
+			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
+			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f //
 			};
 
 			u32 indices[] = {
@@ -159,14 +206,16 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			};
 
 			// Copy vertices into a vertex buffer and upload to GPU
-			glGenBuffers(1, &state->vbo);
-			glBindBuffer(GL_ARRAY_BUFFER, state->vbo);
+			glGenBuffers(1, &glContext->vbo);
+			glBindBuffer(GL_ARRAY_BUFFER, glContext->vbo);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
 			// Copy indices into vertex buffer and upload to GPU
-			glGenBuffers(1, &state->ebo);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, state->ebo);
+#if 0
+			glGenBuffers(1, &glContext->ebo);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glContext->ebo);
 			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+#endif
 
 			// Describe the vertex layout for OpenGL
 			{
@@ -209,8 +258,8 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			LOGLBitmap *bitmap = (LOGLBitmap *)mainStack->Push(sizeof(LOGLBitmap));
 			if (LOGL_LoadBitmap(mainStack, tempStack, bitmap, "container.jpg"))
 			{
-				glGenTextures(1, &state->glTexIdContainer);
-				glBindTexture(GL_TEXTURE_2D, state->glTexIdContainer);
+				glGenTextures(1, &glContext->texIdContainer);
+				glBindTexture(GL_TEXTURE_2D, glContext->texIdContainer);
 
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -225,8 +274,8 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			*bitmap = {};
 			if (LOGL_LoadBitmap(mainStack, tempStack, bitmap, "awesomeface.png"))
 			{
-				glGenTextures(1, &state->glTexIdFace);
-				glBindTexture(GL_TEXTURE_2D, state->glTexIdFace);
+				glGenTextures(1, &glContext->texIdFace);
+				glBindTexture(GL_TEXTURE_2D, glContext->texIdFace);
 
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -239,33 +288,65 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 			}
 		}
+
+		// Setup GL environment
+		{
+			glEnable(GL_DEPTH_TEST);
+
+			f32 fovDegrees     = 45.0f;
+			f32 aspectRatio    = input->screenDim.w / input->screenDim.h;
+			DqnMat4 view       = DqnMat4_Translate(0, 0, -3);
+			DqnMat4 projection = DqnMat4_Perspective(fovDegrees, aspectRatio, 0.1f, 100.0f);
+
+			// Upload to GPU
+			glUniformMatrix4fv(glContext->uniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
+			glUniformMatrix4fv(glContext->uniformProjectionLoc, 1, GL_FALSE, (f32 *)projection.e);
+		}
 	}
-	LOGLState *const state = memory->state;
+	LOGLState *const state       = memory->state;
+	LOGLContext *const glContext = &state->glContext;
+	state->totalDt += input->deltaForFrame;
 
 	glClearColor(0.5f, 0.3f, 0.3f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, state->glTexIdContainer);
+	glBindTexture(GL_TEXTURE_2D, glContext->texIdContainer);
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, state->glTexIdFace);
+	glBindTexture(GL_TEXTURE_2D, glContext->texIdFace);
 
-	// Make transform matrix
+	glUseProgram(glContext->shaderId);
+	glBindVertexArray(glContext->vao);
+	// Make model matrix
 	{
-		LOCAL_PERSIST f32 rotation = 0;
-		rotation += (input->deltaForFrame * 5.0f);
+		f32 degreesRotate = state->totalDt * 15.0f;
+		f32 radiansRotate = DQN_DEGREES_TO_RADIANS(degreesRotate);
 
-		DqnMat4 translateMatrix = DqnMat4_Translate(0.5f, -0.5f, 0.0f);
-		DqnMat4 rotateMatrix = DqnMat4_Rotate(DQN_DEGREES_TO_RADIANS(rotation), 0, 0, 1.0f);
-		DqnMat4 transform   = DqnMat4_Mul(translateMatrix, rotateMatrix);
-		glUniformMatrix4fv(state->shaderTransformLoc, 1, GL_FALSE, (f32 *)transform.e);
+		DqnV3 cubePositions[] = {
+		    DqnV3_3f(0.0f, 0.0f, 0.0f),     //
+		    DqnV3_3f(2.0f, 5.0f, -15.0f),   //
+		    DqnV3_3f(-1.5f, -2.2f, -2.5f),  //
+		    DqnV3_3f(-3.8f, -2.0f, -12.3f), //
+		    DqnV3_3f(2.4f, -0.4f, -3.5f),   //
+		    DqnV3_3f(-1.7f, 3.0f, -7.5f),   //
+		    DqnV3_3f(1.3f, -2.0f, -2.5f),   //
+		    DqnV3_3f(1.5f, 2.0f, -2.5f),    //
+		    DqnV3_3f(1.5f, 0.2f, -1.5f),    //
+		    DqnV3_3f(-1.3f, 1.0f, -1.5f)    //
+		};
+
+		for (DqnV3 vec : cubePositions)
+		{
+			DqnMat4 model = DqnMat4_Translate(vec.x, vec.y, vec.z);
+			model         = DqnMat4_Mul(model, DqnMat4_Rotate(radiansRotate, 1.0f, 0.3f, 0.5f));
+			glUniformMatrix4fv(glContext->uniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
 	}
 
-	glUseProgram(state->glShaderProgram);
-	glBindVertexArray(state->vao);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+	// glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
 	(void)input;
 }

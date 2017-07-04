@@ -68,6 +68,14 @@ FILE_SCOPE LRESULT CALLBACK Win32MainProcCallback(HWND window, UINT msg,
 		}
 		break;
 
+		case WM_SIZE:
+		{
+			u32 height = ((lParam >> 16) & 0xFFFF);
+			u32 width  = (lParam & 0xFFFF);
+			glViewport(0, 0, width, height);
+		}
+		break;
+
 		default:
 		{
 			result = DefWindowProcW(window, msg, wParam, lParam);
@@ -428,6 +436,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
 	f64 frameTimeInS    = 0.0f;
 	PlatformInput input = {};
+	input.screenDim     = DqnV2_2i(BUFFER_WIDTH, BUFFER_HEIGHT);
 
 	PlatformMemory memory = {};
 	bool memInitResult    = (memory.mainStack.Init(DQN_MEGABYTE(16), true, 4) &&

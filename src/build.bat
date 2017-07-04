@@ -47,7 +47,7 @@ REM wd4100 unused argument parameters
 REM wd4201 nonstandard extension used: nameless struct/union
 REM wd4189 local variable is initialised but not referenced
 REM wd4505 unreferenced local function not used will be removed
-set CompileFlags=-EHa- -GR- -Oi -Z7 -W4 -WX -wd4201 -wd4505 -FAsc
+set CompileFlags=-EHsc -GR- -Oi -Z7 -W4 -wd4201 -wd4505 -FAsc
 set DLLFlags=/Fm%ProjectName% /Fo%ProjectName% /Fa%ProjectName% /Fe%ProjectName%
 set Win32Flags=/Fm%ProjectName%Win32 /Fo%ProjectName%Win32 /Fa%ProjectName%Win32 /Fe%ProjectName%Win32
 

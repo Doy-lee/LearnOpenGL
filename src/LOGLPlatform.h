@@ -59,6 +59,8 @@ struct PlatformInput
 {
 	f32 deltaForFrame;
 	PlatformMouse mouse;
+
+	DqnV2 screenDim;
 	union {
 		PlatformKeyState key[PlatformKey_Count];
 		struct
