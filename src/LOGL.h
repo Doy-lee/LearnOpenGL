@@ -13,12 +13,21 @@ struct LOGLBitmap
 
 struct LOGLContext
 {
+	u32 lightUniformProjectionLoc;
+	u32 lightUniformViewLoc;
+	u32 lightUniformModelLoc;
+
 	u32 uniformProjectionLoc;
 	u32 uniformViewLoc;
 	u32 uniformModelLoc;
 
-	u32 shaderId;
+	u32 uniformObjectColor;
+	u32 uniformLightColor;
 
+	u32 mainShaderId;
+	u32 lightShaderId;
+
+	u32 lightVao;
 	u32 vao;
 	u32 vbo;
 	u32 ebo;

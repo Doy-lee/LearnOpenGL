@@ -141,8 +141,10 @@ typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
 	typedef void   glGetProgramivProc      (GLuint program, GLenum pname, GLint *params);
 
 	typedef GLint  glGetUniformLocationProc(GLuint program, const GLchar *name);
-	typedef void   glUniform4fProc         (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 	typedef void   glUniform1iProc         (GLint location, GLint v0);
+	typedef void   glUniform3fProc         (GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+	typedef void   glUniform4fProc         (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+	typedef void   glUniform3fvProc        (GLint location, GLsizei count, const GLfloat *value);
 	typedef void   glUniformMatrix4fvProc  (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
 
     typedef void glEnableVertexAttribArrayProc (GLuint index);
@@ -191,8 +193,10 @@ extern glGetProgramInfoLogProc        *glGetProgramInfoLog;
 extern glGetProgramivProc             *glGetProgramiv;
 
 extern glGetUniformLocationProc       *glGetUniformLocation;
-extern glUniform4fProc                *glUniform4f;
 extern glUniform1iProc                *glUniform1i;
+extern glUniform3fProc                *glUniform3f;
+extern glUniform4fProc                *glUniform4f;
+extern glUniform3fvProc               *glUniform3fv;
 extern glUniformMatrix4fvProc         *glUniformMatrix4fv;
 
 extern glEnableVertexAttribArrayProc  *glEnableVertexAttribArray;
