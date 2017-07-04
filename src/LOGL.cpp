@@ -263,7 +263,7 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
 				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bitmap->dim.w, bitmap->dim.h, 0, GL_RGB,
@@ -295,12 +295,18 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 			f32 fovDegrees     = 45.0f;
 			f32 aspectRatio    = input->screenDim.w / input->screenDim.h;
-			DqnMat4 view       = DqnMat4_Translate(0, 0, -3);
 			DqnMat4 projection = DqnMat4_Perspective(fovDegrees, aspectRatio, 0.1f, 100.0f);
 
 			// Upload to GPU
-			glUniformMatrix4fv(glContext->uniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
 			glUniformMatrix4fv(glContext->uniformProjectionLoc, 1, GL_FALSE, (f32 *)projection.e);
+		}
+
+		// Setup state
+		{
+			state->cameraP     = DqnV3_3f(0, 0, 3);
+			state->lastMouseP  = DqnV2_2i(input->mouse.x, input->mouse.y);
+			state->cameraYaw   = 0;
+			state->cameraPitch = 0;
 		}
 	}
 	LOGLState *const state       = memory->state;
@@ -319,7 +325,8 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 	glUseProgram(glContext->shaderId);
 	glBindVertexArray(glContext->vao);
-	// Make model matrix
+
+	// Make xform matrix
 	{
 		f32 degreesRotate = state->totalDt * 15.0f;
 		f32 radiansRotate = DQN_DEGREES_TO_RADIANS(degreesRotate);
@@ -336,6 +343,32 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 		    DqnV3_3f(1.5f, 0.2f, -1.5f),    //
 		    DqnV3_3f(-1.3f, 1.0f, -1.5f)    //
 		};
+
+		DqnV2 mouseOffset = DqnV2_2f(input->mouse.x - state->lastMouseP.x, state->lastMouseP.y - input->mouse.y);
+		mouseOffset *= 0.1f;
+		state->lastMouseP = DqnV2_2i(input->mouse.x, input->mouse.y);
+
+		state->cameraYaw   -= mouseOffset.x;
+		state->cameraPitch += mouseOffset.y;
+		state->cameraPitch = DqnMath_Clampf(state->cameraPitch, -89, 89);
+
+		DqnV3 cameraFront = {};
+		cameraFront.x     = cosf(DQN_DEGREES_TO_RADIANS(state->cameraYaw)) * cosf(DQN_DEGREES_TO_RADIANS(state->cameraPitch));
+		cameraFront.y     = sinf(DQN_DEGREES_TO_RADIANS(state->cameraPitch));
+		cameraFront.z     = sinf(DQN_DEGREES_TO_RADIANS(state->cameraYaw)) * cosf(DQN_DEGREES_TO_RADIANS(state->cameraPitch));
+		cameraFront       = DqnV3_Normalise(cameraFront);
+
+		auto cameraUp     = DqnV3_3f(0, 1, 0);
+		DqnV3 cameraRight = DqnV3_Normalise(DqnV3_Cross(cameraFront, cameraUp));
+
+		const f32 cameraSpeed = 10.0f * input->deltaForFrame;
+		if (input->key_w.endedDown) state->cameraP -= (cameraFront * cameraSpeed);
+		if (input->key_s.endedDown) state->cameraP += (cameraFront * cameraSpeed);
+		if (input->key_a.endedDown) state->cameraP -= (cameraRight * cameraSpeed);
+		if (input->key_d.endedDown) state->cameraP += (cameraRight * cameraSpeed);
+
+		DqnMat4 view = DqnMat4_LookAt(state->cameraP, state->cameraP + cameraFront, cameraUp);
+		glUniformMatrix4fv(glContext->uniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
 
 		for (DqnV3 vec : cubePositions)
 		{

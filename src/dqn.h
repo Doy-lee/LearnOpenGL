@@ -3112,19 +3112,19 @@ DQN_FILE_SCOPE DqnMat4 DqnMat4_LookAt(DqnV3 eye, DqnV3 center, DqnV3 up)
 
 	result.e[0][0] = s.x;
 	result.e[0][1] = u.x;
-	result.e[0][2] = f.x;
+	result.e[0][2] = -f.x;
 
 	result.e[1][0] = s.y;
 	result.e[1][1] = u.y;
-	result.e[1][2] = f.y;
+	result.e[1][2] = -f.y;
 
 	result.e[2][0] = s.z;
 	result.e[2][1] = u.z;
-	result.e[2][2] = f.z;
+	result.e[2][2] = -f.z;
 
-	result.e[3][0] = DqnV3_Dot(s, eye);
-	result.e[3][1] = DqnV3_Dot(u, eye);
-	result.e[3][2] = -DqnV3_Dot(f, eye);
+	result.e[3][0] = -DqnV3_Dot(s, eye);
+	result.e[3][1] = -DqnV3_Dot(u, eye);
+	result.e[3][2] = DqnV3_Dot(f, eye);
 	result.e[3][3] = 1.0f;
 	return result;
 }
