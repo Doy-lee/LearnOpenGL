@@ -884,7 +884,8 @@ DQN_FILE_SCOPE DqnMat4 DqnMat4_Orthographic(f32 left, f32 right, f32 bottom, f32
 DQN_FILE_SCOPE DqnMat4 DqnMat4_Perspective (f32 fovYDegrees, f32 aspectRatio, f32 zNear, f32 zFar);
 DQN_FILE_SCOPE DqnMat4 DqnMat4_LookAt      (DqnV3 eye, DqnV3 center, DqnV3 up);
 
-DQN_FILE_SCOPE DqnMat4 DqnMat4_Translate   (f32 x, f32 y, f32 z);
+DQN_FILE_SCOPE DqnMat4 DqnMat4_Translate3f (f32 x, f32 y, f32 z);
+DQN_FILE_SCOPE DqnMat4 DqnMat4_TranslateV3 (DqnV3 vec);
 DQN_FILE_SCOPE DqnMat4 DqnMat4_Rotate      (f32 radians, f32 x, f32 y, f32 z);
 DQN_FILE_SCOPE DqnMat4 DqnMat4_Scale       (f32 x, f32 y, f32 z);
 DQN_FILE_SCOPE DqnMat4 DqnMat4_ScaleV3     (DqnV3 scale);
@@ -3129,12 +3130,21 @@ DQN_FILE_SCOPE DqnMat4 DqnMat4_LookAt(DqnV3 eye, DqnV3 center, DqnV3 up)
 	return result;
 }
 
-DQN_FILE_SCOPE DqnMat4 DqnMat4_Translate(f32 x, f32 y, f32 z)
+DQN_FILE_SCOPE DqnMat4 DqnMat4_Translate3f(f32 x, f32 y, f32 z)
 {
 	DqnMat4 result = DqnMat4_Identity();
 	result.e[3][0] = x;
 	result.e[3][1] = y;
 	result.e[3][2] = z;
+	return result;
+}
+
+DQN_FILE_SCOPE DqnMat4 DqnMat4_TranslateV3(DqnV3 vec)
+{
+	DqnMat4 result = DqnMat4_Identity();
+	result.e[3][0] = vec.x;
+	result.e[3][1] = vec.y;
+	result.e[3][2] = vec.z;
 	return result;
 }
 

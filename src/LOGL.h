@@ -17,12 +17,14 @@ struct LOGLContext
 	u32 lightUniformViewLoc;
 	u32 lightUniformModelLoc;
 
-	u32 uniformProjectionLoc;
-	u32 uniformViewLoc;
-	u32 uniformModelLoc;
+	i32 uniformProjectionLoc;
+	i32 uniformViewLoc;
+	i32 uniformModelLoc;
 
-	u32 uniformObjectColor;
-	u32 uniformLightColor;
+	i32 uniformObjectColor;
+	i32 uniformLightColor;
+	i32 uniformLightPos;
+	i32 uniformViewPos;
 
 	u32 mainShaderId;
 	u32 lightShaderId;

@@ -16,6 +16,27 @@ enum ShaderTypeInternal
 	ShaderTypeInternal_Fragment,
 };
 
+#define OGL_ASSERT(func) func; OpenGL_AssertError()
+FILE_SCOPE inline GLenum OpenGL_AssertError()
+{
+	GLenum errorCode;
+	while ((errorCode = glGetError()) != GL_NO_ERROR)
+	{
+		switch (errorCode)
+		{
+			case GL_INVALID_ENUM:                  DQN_ASSERT((bool)GL_INVALID_ENUM);                  break;
+			case GL_INVALID_VALUE:                 DQN_ASSERT((bool)GL_INVALID_VALUE);                 break;
+			case GL_INVALID_OPERATION:             DQN_ASSERT((bool)GL_INVALID_OPERATION);             break;
+			case GL_STACK_OVERFLOW:                DQN_ASSERT((bool)GL_STACK_OVERFLOW);                break;
+			case GL_STACK_UNDERFLOW:               DQN_ASSERT((bool)GL_STACK_UNDERFLOW);               break;
+			case GL_OUT_OF_MEMORY:                 DQN_ASSERT((bool)GL_OUT_OF_MEMORY);                 break;
+			case GL_INVALID_FRAMEBUFFER_OPERATION: DQN_ASSERT((bool)GL_INVALID_FRAMEBUFFER_OPERATION); break;
+		}
+	}
+
+	return errorCode;
+}
+
 FILE_SCOPE bool OpenGL_CompileShader(char *srcCode, u32 *const mainShaderId, enum ShaderTypeInternal shaderType)
 {
 	if (!DQN_ASSERT_MSG(shaderType != ShaderTypeInternal_Invalid, "shaderType: Is the invalid enum value") ||
@@ -89,6 +110,7 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			layout(location = 0) in vec3 aPos;
 			layout(location = 1) in vec3 aColor;
 			layout(location = 2) in vec2 aTexCoord;
+			layout(location = 3) in vec3 aNormal;
 
 			uniform mat4 model;
 			uniform mat4 view;
@@ -96,11 +118,16 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 			out vec3 vertexColor;
 			out vec2 texCoord;
+			out vec3 normal;
+			out vec3 fragPos;
+
 			void main()
 			{
-			    gl_Position = projection * view * model * vec4(aPos, 1.0);
+			    gl_Position = projection * view * model * vec4(aPos, 1.0f);
 			    vertexColor = aColor;
-			    texCoord    = vec2(aTexCoord.x, aTexCoord.y);
+			    texCoord    = aTexCoord;
+				normal      = vec3(model * vec4(aNormal, 1.0));
+				fragPos     = vec3(model * vec4(aPos, 1.0));
 			}
 			)DQN";
 
@@ -110,16 +137,41 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 			in  vec3 vertexColor;
 			in  vec2 texCoord;
+			in  vec3 normal;
+			in  vec3 fragPos;
 
 			uniform sampler2D inTexture1;
 			uniform sampler2D inTexture2;
 			uniform vec3 objectColor;
 			uniform vec3 lightColor;
+			uniform vec3 lightPos;
+			uniform vec3 viewPos;
 
 			void main()
 			{
-			    fragColor = mix(texture(inTexture1, texCoord), texture(inTexture2, texCoord), 0.2);
-				fragColor = fragColor * vec4(lightColor * objectColor, 1.0);
+				float ambientCoeff = 0.1;
+				vec3 ambient       = ambientCoeff * lightColor;
+				vec3 norm          = normalize(normal);
+				vec3 lightDir      = normalize(lightPos - fragPos);
+
+				// Calculate diffuse, the angle between the light direction and surface normal
+				float diffuseVal = (max(dot(norm, lightDir), 0));
+				vec3 diffuse     = diffuseVal * lightColor;
+
+				// Calculate specular, the angle between the view and the reflection of the light vector
+				float specularCoeff = 0.5f;
+				vec3 viewDir        = normalize(viewPos - fragPos);
+
+				// NOTE(doyle): Reflect first arg expects the vector to point from the light src to fragment, so reverse it
+				vec3  reflectDir        = reflect(-lightDir, norm);
+				int   specularShininess = 32;
+				float specularVal       = pow(max(dot(viewDir, reflectDir), 0), specularShininess);
+				vec3  specular          = specularCoeff * specularVal * lightColor;
+
+				// Sample texture and apply light to texture
+				fragColor = mix(texture(inTexture1, texCoord), texture(inTexture2, texCoord), 0.2);
+				fragColor *= vec4((ambient + diffuse + specular), 1.0);
+				fragColor *= vec4(objectColor, 1.0);
 			}
 			)DQN";
 
@@ -137,7 +189,6 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			bool success = OpenGL_CompileShader(vertexShaderSrc,        &vertexShader,        ShaderTypeInternal_Vertex);
 			success     |= OpenGL_CompileShader(fragmentShaderSrc,      &fragmentShader,      ShaderTypeInternal_Fragment);
 			success     |= OpenGL_CompileShader(lightFragmentShaderSrc, &lightFragmentShader, ShaderTypeInternal_Fragment);
-			if (!DQN_ASSERT_MSG(success, "OpenGL_CompileShader() failed.")) return;
 		}
 
 		// Link shaders
@@ -152,25 +203,39 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			// Setup main shader uniforms
 			{
 				glUseProgram(glContext->mainShaderId);
-				u32 tex1Loc = glGetUniformLocation(glContext->mainShaderId, "inTexture1");
-				u32 tex2Loc = glGetUniformLocation(glContext->mainShaderId, "inTexture2");
-				DQN_ASSERT_MSG(tex1Loc != -1 && tex2Loc != -1, "tex1Loc: %d, tex2Loc: %d", tex1Loc,
-				               tex2Loc);
 
-				glUniform1i(tex1Loc, 0);
-				glUniform1i(tex2Loc, 1);
+				// Enable textures
+				if (1)
+				{
+					i32 tex1Loc = glGetUniformLocation(glContext->mainShaderId, "inTexture1");
+					i32 tex2Loc = glGetUniformLocation(glContext->mainShaderId, "inTexture2");
+					DQN_ASSERT_MSG(tex1Loc != -1 && tex2Loc != -1, "tex1Loc: %d, tex2Loc: %d", tex1Loc, tex2Loc);
 
-				glContext->uniformProjectionLoc = glGetUniformLocation(glContext->mainShaderId, "projection");
-				glContext->uniformViewLoc       = glGetUniformLocation(glContext->mainShaderId, "view");
-				glContext->uniformModelLoc      = glGetUniformLocation(glContext->mainShaderId, "model");
-				DQN_ASSERT(glContext->uniformProjectionLoc != -1);
-				DQN_ASSERT(glContext->uniformViewLoc != -1);
-				DQN_ASSERT(glContext->uniformModelLoc != -1);
+					glUniform1i(tex1Loc, 0);
+					glUniform1i(tex2Loc, 1);
+				}
 
-				glContext->uniformObjectColor = glGetUniformLocation(glContext->mainShaderId, "objectColor");
-				glContext->uniformLightColor  = glGetUniformLocation(glContext->mainShaderId, "lightColor");
-				DQN_ASSERT(glContext->uniformObjectColor != -1);
-				DQN_ASSERT(glContext->uniformLightColor != -1);
+				// MVP matrix
+				{
+					glContext->uniformProjectionLoc = glGetUniformLocation(glContext->mainShaderId, "projection");
+					glContext->uniformViewLoc       = glGetUniformLocation(glContext->mainShaderId, "view");
+					glContext->uniformModelLoc      = glGetUniformLocation(glContext->mainShaderId, "model");
+					DQN_ASSERT(glContext->uniformProjectionLoc != -1);
+					DQN_ASSERT(glContext->uniformViewLoc != -1);
+					DQN_ASSERT(glContext->uniformModelLoc != -1);
+				}
+
+				// Lighting
+				{
+					glContext->uniformObjectColor = glGetUniformLocation(glContext->mainShaderId, "objectColor");
+					glContext->uniformLightColor  = glGetUniformLocation(glContext->mainShaderId, "lightColor");
+					glContext->uniformLightPos    = glGetUniformLocation(glContext->mainShaderId, "lightPos");
+					glContext->uniformViewPos     = glGetUniformLocation(glContext->mainShaderId, "viewPos");
+					DQN_ASSERT(glContext->uniformObjectColor != -1);
+					DQN_ASSERT(glContext->uniformLightColor != -1);
+					DQN_ASSERT(glContext->uniformLightPos != -1);
+					DQN_ASSERT(glContext->uniformViewPos != -1);
+				}
 
 				// Upload projection to GPU
 				glUniformMatrix4fv(glContext->uniformProjectionLoc, 1, GL_FALSE, (f32 *)projection.e);
@@ -204,48 +269,48 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			glBindVertexArray(glContext->vao);
 
 			f32 vertices[] = {
-			    // positions          // color  // tex coords
-			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 0.0f, //
-			     0.5f, -0.5f, -0.5f,  1, 1, 1,  1.0f, 0.0f, //
-			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
-			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
-			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
-			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 0.0f, //
+			    // positions          // color  // tex coords //normals
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 0.0f,   0.0f,  0.0f, -1.0f,//
+			     0.5f, -0.5f, -0.5f,  1, 1, 1,  1.0f, 0.0f,   0.0f,  0.0f, -1.0f,//
+			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f,   0.0f,  0.0f, -1.0f,//
+			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f,   0.0f,  0.0f, -1.0f,//
+			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   0.0f,  0.0f, -1.0f,//
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 0.0f,   0.0f,  0.0f, -1.0f,//
 
-			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
-			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
-			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 1.0f, //
-			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 1.0f, //
-			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  0.0f, 1.0f, //
-			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
+			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f,   0.0f,  0.0f, 1.0f, //
+			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   0.0f,  0.0f, 1.0f, //
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 1.0f,   0.0f,  0.0f, 1.0f, //
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 1.0f,   0.0f,  0.0f, 1.0f, //
+			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  0.0f, 1.0f,   0.0f,  0.0f, 1.0f, //
+			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f,   0.0f,  0.0f, 1.0f, //
 
-			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
-			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
-			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
-			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
-			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
-			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   1.0f,  0.0f,  0.0f,//
+			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f,   1.0f,  0.0f,  0.0f,//
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   1.0f,  0.0f,  0.0f,//
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   1.0f,  0.0f,  0.0f,//
+			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f,   1.0f,  0.0f,  0.0f,//
+			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   1.0f,  0.0f,  0.0f,//
 
-			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
-			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
-			     0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
-			     0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
-			     0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
-			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   1.0f,  0.0f,  0.0f,//
+			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f,   1.0f,  0.0f,  0.0f,//
+			     0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   1.0f,  0.0f,  0.0f,//
+			     0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   1.0f,  0.0f,  0.0f,//
+			     0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f,   1.0f,  0.0f,  0.0f,//
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   1.0f,  0.0f,  0.0f,//
 
-			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
-			     0.5f, -0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
-			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
-			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
-			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
-			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   0.0f, -1.0f,  0.0f,//
+			     0.5f, -0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f,   0.0f, -1.0f,  0.0f,//
+			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   0.0f, -1.0f,  0.0f,//
+			     0.5f, -0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   0.0f, -1.0f,  0.0f,//
+			    -0.5f, -0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f,   0.0f, -1.0f,  0.0f,//
+			    -0.5f, -0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   0.0f, -1.0f,  0.0f,//
 
-			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f, //
-			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f, //
-			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
-			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f, //
-			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f, //
-			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f //
+			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   0.0f,  1.0f,  0.0f,//
+			     0.5f,  0.5f, -0.5f,  1, 1, 1,  1.0f, 1.0f,   0.0f,  1.0f,  0.0f,//
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   0.0f,  1.0f,  0.0f,//
+			     0.5f,  0.5f,  0.5f,  1, 1, 1,  1.0f, 0.0f,   0.0f,  1.0f,  0.0f,//
+			    -0.5f,  0.5f,  0.5f,  1, 1, 1,  0.0f, 0.0f,   0.0f,  1.0f,  0.0f,//
+			    -0.5f,  0.5f, -0.5f,  1, 1, 1,  0.0f, 1.0f,   0.0f,  1.0f,  0.0f,//
 			};
 
 			// Copy vertices into a vertex buffer and upload to GPU
@@ -265,10 +330,11 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 #endif
 
-			const u32 numPosComponents   = 3;
-			const u32 numColorComponents = 3;
-			const u32 numTexComponents   = 2;
-			const u32 stride             = sizeof(f32) * (numPosComponents + numColorComponents + numTexComponents);
+			const u32 numPosComponents    = 3;
+			const u32 numColorComponents  = 3;
+			const u32 numTexComponents    = 2;
+			const u32 numNormalComponents = 3;
+			const u32 stride       = sizeof(f32) * (numPosComponents + numColorComponents + numTexComponents + numNormalComponents);
 			GLboolean isNormalised = GL_FALSE;
 
 			// Describe the vertex layout for OpenGL
@@ -294,6 +360,14 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 					const u32 shaderInLoc = 2;
 					void *vertexOffset = (void *)((numColorComponents + numPosComponents) * sizeof(f32));
 					glVertexAttribPointer(shaderInLoc, numTexComponents, GL_FLOAT, isNormalised, stride, vertexOffset);
+					glEnableVertexAttribArray(shaderInLoc);
+				}
+
+				// Set the vertex attributes pointer for normals
+				{
+					const u32 shaderInLoc = 3;
+					void *vertexOffset = (void *)((numColorComponents + numPosComponents + numTexComponents) * sizeof(f32));
+					glVertexAttribPointer(shaderInLoc, numNormalComponents, GL_FLOAT, isNormalised, stride, vertexOffset);
 					glEnableVertexAttribArray(shaderInLoc);
 				}
 			}
@@ -402,6 +476,20 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			auto lightColor = DqnV3_3f(1, 1, 1);
 			auto objColor   = DqnV3_3f(1.0f, 0.5f, 0.31f);
 
+			DqnV3 lightPos = DqnV3_3f(1.2f, 1.0f, 2.0f);
+			// Light source
+			{
+				glUseProgram(glContext->lightShaderId);
+				glBindVertexArray(glContext->lightVao);
+
+				DqnMat4 model = DqnMat4_TranslateV3(lightPos);
+				model         = DqnMat4_Mul(model, DqnMat4_ScaleV3(DqnV3_1f(0.25f)));
+				glUniformMatrix4fv(glContext->lightUniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
+				glUniformMatrix4fv(glContext->lightUniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
+
+				glDrawArrays(GL_TRIANGLES, 0, 36);
+			}
+
 			// Cube
 			{
 				f32 degreesRotate = state->totalDt * 15.0f;
@@ -410,33 +498,29 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				glUseProgram(glContext->mainShaderId);
 				glBindVertexArray(glContext->vao);
 
-				glActiveTexture(GL_TEXTURE0);
-				glBindTexture(GL_TEXTURE_2D, glContext->texIdContainer);
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_2D, glContext->texIdFace);
+				// Activate texture bindings for cube
+				{
+					glActiveTexture(GL_TEXTURE0);
+					glBindTexture(GL_TEXTURE_2D, glContext->texIdContainer);
+					glActiveTexture(GL_TEXTURE1);
+					glBindTexture(GL_TEXTURE_2D, glContext->texIdFace);
+				}
 
-				DqnMat4 model = DqnMat4_Translate(0, 0, 0);
+				// Set transform matrices
+				DqnMat4 model = DqnMat4_Translate3f(0, 0, 0);
 				model         = DqnMat4_Mul(model, DqnMat4_Rotate(radiansRotate, 1.0f, 0.3f, 0.5f));
 				glUniformMatrix4fv(glContext->uniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
 				glUniformMatrix4fv(glContext->uniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
 
-				glUniform3fv(glContext->uniformObjectColor, 1, (f32 *)objColor.e);
-				glUniform3fv(glContext->uniformLightColor, 1, (f32 *)lightColor.e);
+				// Set lighting uniforms
+				glUniform3fv(glContext->uniformObjectColor, 1, objColor.e);
+				glUniform3fv(glContext->uniformLightColor,  1, lightColor.e);
+				glUniform3fv(glContext->uniformLightPos,    1, lightPos.e);
+				glUniform3fv(glContext->uniformViewPos,     1, state->cameraP.e);
 
 				glDrawArrays(GL_TRIANGLES, 0, 36);
 			}
 
-			// Light source
-			{
-				glUseProgram(glContext->lightShaderId);
-				glBindVertexArray(glContext->lightVao);
-
-				DqnMat4 model = DqnMat4_Translate(1.2f, 1.0f, 2.0f);
-				glUniformMatrix4fv(glContext->lightUniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
-				glUniformMatrix4fv(glContext->lightUniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
-
-				glDrawArrays(GL_TRIANGLES, 0, 36);
-			}
 		}
 	}
 

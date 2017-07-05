@@ -155,6 +155,9 @@ typedef void glDrawArraysProc(GLenum mode, GLint first, GLsizei count);
 #ifndef GL_VERSION_3_0
 #define GL_VERSION_3_0 1
 	typedef unsigned short GLhalf;
+
+	#define GL_INVALID_FRAMEBUFFER_OPERATION  0x0506
+
 	typedef void glGenVertexArraysProc(GLsizei n, GLuint *arrays);
 	typedef void glBindVertexArrayProc(GLuint array);
 	typedef void glGenerateMipmapProc (GLenum target);
