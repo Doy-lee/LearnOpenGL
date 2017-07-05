@@ -40,6 +40,7 @@ glGetProgramInfoLogProc        *glGetProgramInfoLog;
 glGetProgramivProc             *glGetProgramiv;
 
 glGetUniformLocationProc       *glGetUniformLocation;
+glUniform1fProc                *glUniform1f;
 glUniform1iProc                *glUniform1i;
 glUniform3fProc                *glUniform3f;
 glUniform4fProc                *glUniform4f;
@@ -439,6 +440,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		WIN32_GL_LOAD_FUNCTION(glGetProgramiv);
 
 		WIN32_GL_LOAD_FUNCTION(glGetUniformLocation);
+		WIN32_GL_LOAD_FUNCTION(glUniform1f);
 		WIN32_GL_LOAD_FUNCTION(glUniform1i);
 		WIN32_GL_LOAD_FUNCTION(glUniform3f);
 		WIN32_GL_LOAD_FUNCTION(glUniform4f);

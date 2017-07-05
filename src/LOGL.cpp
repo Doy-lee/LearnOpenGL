@@ -123,11 +123,11 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 			void main()
 			{
-			    gl_Position = projection * view * model * vec4(aPos, 1.0f);
+				fragPos     = vec3(model * vec4(aPos, 1.0));
+			    gl_Position = projection * view * vec4(fragPos, 1.0f);
 			    vertexColor = aColor;
 			    texCoord    = aTexCoord;
-				normal      = vec3(model * vec4(aNormal, 1.0));
-				fragPos     = vec3(model * vec4(aPos, 1.0));
+				normal      = mat3(transpose(inverse(model))) * aNormal;
 			}
 			)DQN";
 
@@ -140,38 +140,51 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			in  vec3 normal;
 			in  vec3 fragPos;
 
+			struct Material
+			{
+				vec3 ambient;
+				vec3 diffuse;
+				vec3 specular;
+				float shininess;
+			};
+
+			struct Light
+			{
+				vec3 position;
+
+				vec3 diffuse;
+				vec3 ambient;
+				vec3 specular;
+			};
+
 			uniform sampler2D inTexture1;
 			uniform sampler2D inTexture2;
-			uniform vec3 objectColor;
-			uniform vec3 lightColor;
-			uniform vec3 lightPos;
-			uniform vec3 viewPos;
+
+			uniform Material  material;
+			uniform Light     light;
+			uniform vec3      viewPos;
 
 			void main()
 			{
-				float ambientCoeff = 0.1;
-				vec3 ambient       = ambientCoeff * lightColor;
-				vec3 norm          = normalize(normal);
-				vec3 lightDir      = normalize(lightPos - fragPos);
+				vec3 ambient  = material.ambient * light.ambient;
+				vec3 norm     = normalize(normal);
+				vec3 lightDir = normalize(light.position - fragPos);
 
 				// Calculate diffuse, the angle between the light direction and surface normal
 				float diffuseVal = (max(dot(norm, lightDir), 0));
-				vec3 diffuse     = diffuseVal * lightColor;
+				vec3 diffuse     = (diffuseVal * material.diffuse) * light.diffuse;
 
 				// Calculate specular, the angle between the view and the reflection of the light vector
-				float specularCoeff = 0.5f;
-				vec3 viewDir        = normalize(viewPos - fragPos);
-
 				// NOTE(doyle): Reflect first arg expects the vector to point from the light src to fragment, so reverse it
-				vec3  reflectDir        = reflect(-lightDir, norm);
-				int   specularShininess = 32;
-				float specularVal       = pow(max(dot(viewDir, reflectDir), 0), specularShininess);
-				vec3  specular          = specularCoeff * specularVal * lightColor;
+				vec3  viewDir     = normalize(viewPos - fragPos);
+				vec3  reflectDir  = reflect(-lightDir, norm);
+				float specularVal = pow(max(dot(viewDir, reflectDir), 0), material.shininess);
+				vec3  specular    = (material.specular * specularVal) * light.specular;
 
 				// Sample texture and apply light to texture
-				fragColor = mix(texture(inTexture1, texCoord), texture(inTexture2, texCoord), 0.2);
-				fragColor *= vec4((ambient + diffuse + specular), 1.0);
-				fragColor *= vec4(objectColor, 1.0);
+				vec4 texel = mix(texture(inTexture1, texCoord), texture(inTexture2, texCoord), 0.2);
+				vec3 light = ambient + diffuse + specular;
+				fragColor  = vec4(light, 1.0f);
 			}
 			)DQN";
 
@@ -205,7 +218,7 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				glUseProgram(glContext->mainShaderId);
 
 				// Enable textures
-				if (1)
+				if (0)
 				{
 					i32 tex1Loc = glGetUniformLocation(glContext->mainShaderId, "inTexture1");
 					i32 tex2Loc = glGetUniformLocation(glContext->mainShaderId, "inTexture2");
@@ -225,16 +238,31 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 					DQN_ASSERT(glContext->uniformModelLoc != -1);
 				}
 
-				// Lighting
+				glContext->uniformViewPos = glGetUniformLocation(glContext->mainShaderId, "viewPos");
+				DQN_ASSERT(glContext->uniformViewPos != -1);
+
+				// Material uniforms
 				{
-					glContext->uniformObjectColor = glGetUniformLocation(glContext->mainShaderId, "objectColor");
-					glContext->uniformLightColor  = glGetUniformLocation(glContext->mainShaderId, "lightColor");
-					glContext->uniformLightPos    = glGetUniformLocation(glContext->mainShaderId, "lightPos");
-					glContext->uniformViewPos     = glGetUniformLocation(glContext->mainShaderId, "viewPos");
-					DQN_ASSERT(glContext->uniformObjectColor != -1);
-					DQN_ASSERT(glContext->uniformLightColor != -1);
+					glContext->uniformMaterialAmbient   = glGetUniformLocation(glContext->mainShaderId, "material.ambient");
+					glContext->uniformMaterialDiffuse   = glGetUniformLocation(glContext->mainShaderId, "material.diffuse");
+					glContext->uniformMaterialSpecular  = glGetUniformLocation(glContext->mainShaderId, "material.specular");
+					glContext->uniformMaterialShininess = glGetUniformLocation(glContext->mainShaderId, "material.shininess");
+					DQN_ASSERT(glContext->uniformMaterialAmbient != -1);
+					DQN_ASSERT(glContext->uniformMaterialDiffuse != -1);
+					DQN_ASSERT(glContext->uniformMaterialSpecular != -1);
+					DQN_ASSERT(glContext->uniformMaterialShininess != -1);
+				}
+
+				// Physical Light uniforms
+				{
+					glContext->uniformLightAmbient  = glGetUniformLocation(glContext->mainShaderId, "light.ambient");
+					glContext->uniformLightDiffuse  = glGetUniformLocation(glContext->mainShaderId, "light.diffuse");
+					glContext->uniformLightSpecular = glGetUniformLocation(glContext->mainShaderId, "light.specular");
+					glContext->uniformLightPos      = glGetUniformLocation(glContext->mainShaderId, "light.position");
+					DQN_ASSERT(glContext->uniformLightAmbient != -1);
+					DQN_ASSERT(glContext->uniformLightDiffuse != -1);
+					DQN_ASSERT(glContext->uniformLightSpecular != -1);
 					DQN_ASSERT(glContext->uniformLightPos != -1);
-					DQN_ASSERT(glContext->uniformViewPos != -1);
 				}
 
 				// Upload projection to GPU
@@ -442,7 +470,7 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 	LOGLContext *const glContext = &state->glContext;
 	state->totalDt += input->deltaForFrame;
 
-	glClearColor(0.5f, 0.3f, 0.3f, 1.0f);
+	glClearColor(0.1f, 0.1f, 0.1f, 0.1f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -473,9 +501,6 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 		// Render model code
 		if (1)
 		{
-			auto lightColor = DqnV3_3f(1, 1, 1);
-			auto objColor   = DqnV3_3f(1.0f, 0.5f, 0.31f);
-
 			DqnV3 lightPos = DqnV3_3f(1.2f, 1.0f, 2.0f);
 			// Light source
 			{
@@ -512,11 +537,19 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				glUniformMatrix4fv(glContext->uniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
 				glUniformMatrix4fv(glContext->uniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
 
-				// Set lighting uniforms
-				glUniform3fv(glContext->uniformObjectColor, 1, objColor.e);
-				glUniform3fv(glContext->uniformLightColor,  1, lightColor.e);
-				glUniform3fv(glContext->uniformLightPos,    1, lightPos.e);
 				glUniform3fv(glContext->uniformViewPos,     1, state->cameraP.e);
+
+				// Set material uniforms
+				glUniform3f(glContext->uniformMaterialAmbient,   1.0f, 0.5f, 0.31f);
+				glUniform3f(glContext->uniformMaterialDiffuse,   1.0f, 0.5f, 0.31f);
+				glUniform3f(glContext->uniformMaterialSpecular,  0.5f, 0.5f, 0.5f);
+				glUniform1f(glContext->uniformMaterialShininess, 32.0f);
+
+				// Set physical light uniforms
+				glUniform3f(glContext->uniformLightAmbient,   0.2f, 0.2f, 0.2f);
+				glUniform3f(glContext->uniformLightDiffuse,   0.5f, 0.5f, 0.5f);
+				glUniform3f(glContext->uniformLightSpecular,  1.0f, 1.0f, 1.0f);
+				glUniform3fv(glContext->uniformLightPos, 1, lightPos.e);
 
 				glDrawArrays(GL_TRIANGLES, 0, 36);
 			}
