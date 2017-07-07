@@ -25,10 +25,17 @@ struct LOGLContext
 	i32 uniformMaterialSpecular;
 	i32 uniformMaterialShininess;
 
+	i32 uniformLightPos;
+	i32 uniformLightDir;
+	i32 uniformLightCutOff;
+	i32 uniformLightOuterCutOff;
+
 	i32 uniformLightAmbient;
 	i32 uniformLightDiffuse;
 	i32 uniformLightSpecular;
-	i32 uniformLightPos;
+	i32 uniformLightConstant;
+	i32 uniformLightLinear;
+	i32 uniformLightQuadratic;
 
 	i32 uniformViewPos;
 

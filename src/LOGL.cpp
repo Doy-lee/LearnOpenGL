@@ -147,37 +147,56 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				float     shininess;
 			};
 
-			struct Light
-			{
+			struct Light {
 				vec3 position;
+				vec3 direction;
+				float cutOff;
+				float outerCutOff;
 
 				vec3 diffuse;
 				vec3 ambient;
 				vec3 specular;
+
+				float constant;
+				float linear;
+				float quadratic;
 			};
 
-			uniform Material  material;
-			uniform Light     light;
-			uniform vec3      viewPos;
+			uniform Material material;
+			uniform Light    light;
+			uniform vec3     viewPos;
 
 			void main()
 			{
-				vec3 ambient  = light.ambient * vec3(texture(material.diffuse, texCoord));
-				vec3 norm     = normalize(normal);
+				vec3 ambient  = light.ambient * texture(material.diffuse, texCoord).rgb;
 				vec3 lightDir = normalize(light.position - fragPos);
+				vec3 norm     = normalize(normal);
 
-				// Calculate diffuse, the angle between the light direction and surface normal
+				// Diffuse, the angle between the light direction and surface normal
 				float diffuseVal = (max(dot(norm, lightDir), 0));
-				vec3 diffuse     = light.diffuse * diffuseVal * vec3(texture(material.diffuse, texCoord));
+				vec3 diffuse     = light.diffuse * diffuseVal * texture(material.diffuse, texCoord).rgb;
 
-				// Calculate specular, the angle between the view and the reflection of the light vector
+				// Specular, the angle between the view and the reflection of the light vector
 				// NOTE(doyle): Reflect first arg expects the vector to point from the light src to fragment, so reverse it
 				vec3  viewDir     = normalize(viewPos - fragPos);
 				vec3  reflectDir  = reflect(-lightDir, norm);
 				float specularVal = pow(max(dot(viewDir, reflectDir), 0), material.shininess);
-				vec3  specular    = light.specular * specularVal * vec3(texture(material.specular, texCoord));
+				vec3  specular    = light.specular * specularVal * texture(material.specular, texCoord).rgb;
 
-				// Sample texture and apply light to texture
+				// spotlight w/ soft edges
+				float theta     = dot(lightDir, normalize(light.direction));
+				float epsilon   = light.cutOff - light.outerCutOff;
+				float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+				diffuse  *= intensity;
+				specular *= intensity;
+
+				// Calculate attenuation
+				float distance    = length(light.position - fragPos);
+				float attenuation = 1.0f / (light.constant + (light.linear * distance) + (light.quadratic * distance * distance));
+				ambient  *= attenuation;
+				diffuse  *= attenuation;
+				specular *= attenuation;
+
 				fragColor = vec4(ambient + diffuse + specular, 1.0f);
 			}
 			)DQN";
@@ -238,16 +257,30 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 					glUniform1i(glContext->uniformMaterialSpecular, 1);
 				}
 
-				// Physical Light uniforms
+				// Setup lights
 				{
 					glContext->uniformLightAmbient  = glGetUniformLocation(glContext->mainShaderId, "light.ambient");
 					glContext->uniformLightDiffuse  = glGetUniformLocation(glContext->mainShaderId, "light.diffuse");
 					glContext->uniformLightSpecular = glGetUniformLocation(glContext->mainShaderId, "light.specular");
-					glContext->uniformLightPos      = glGetUniformLocation(glContext->mainShaderId, "light.position");
 					DQN_ASSERT(glContext->uniformLightAmbient != -1);
 					DQN_ASSERT(glContext->uniformLightDiffuse != -1);
 					DQN_ASSERT(glContext->uniformLightSpecular != -1);
+
+					glContext->uniformLightConstant  = glGetUniformLocation(glContext->mainShaderId, "light.constant");
+					glContext->uniformLightLinear    = glGetUniformLocation(glContext->mainShaderId, "light.linear");
+					glContext->uniformLightQuadratic = glGetUniformLocation(glContext->mainShaderId, "light.quadratic");
+					DQN_ASSERT(glContext->uniformLightConstant != -1);
+					DQN_ASSERT(glContext->uniformLightLinear != -1);
+					DQN_ASSERT(glContext->uniformLightQuadratic != -1);
+
+					glContext->uniformLightPos         = glGetUniformLocation(glContext->mainShaderId, "light.position");
+					glContext->uniformLightDir         = glGetUniformLocation(glContext->mainShaderId, "light.direction");
+					glContext->uniformLightCutOff      = glGetUniformLocation(glContext->mainShaderId, "light.cutOff");
+					glContext->uniformLightOuterCutOff = glGetUniformLocation(glContext->mainShaderId, "light.outerCutOff");
 					DQN_ASSERT(glContext->uniformLightPos != -1);
+					DQN_ASSERT(glContext->uniformLightDir != -1);
+					DQN_ASSERT(glContext->uniformLightCutOff != -1);
+					DQN_ASSERT(glContext->uniformLightOuterCutOff != -1);
 				}
 
 				// Upload projection to GPU
@@ -545,27 +578,55 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 					glBindTexture(GL_TEXTURE_2D, glContext->texIdCrateSpecular);
 				}
 
-				// Set transform matrices
-				DqnMat4 model = DqnMat4_Translate3f(0, 0, 0);
-				model         = DqnMat4_Mul(model, DqnMat4_Rotate(radiansRotate, 1.0f, 0.3f, 0.5f));
-				glUniformMatrix4fv(glContext->uniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
+				// Set view data
 				glUniformMatrix4fv(glContext->uniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
-
-				glUniform3fv(glContext->uniformViewPos,     1, state->cameraP.e);
+				glUniform3fv(glContext->uniformViewPos, 1, state->cameraP.e);
 
 				// Set material uniforms
-				glUniform3f(glContext->uniformMaterialSpecular,  0.5f, 0.5f, 0.5f);
 				glUniform1f(glContext->uniformMaterialShininess, 32.0f);
 
-				// Set physical light uniforms
-				glUniform3f(glContext->uniformLightAmbient,   0.2f, 0.2f, 0.2f);
-				glUniform3f(glContext->uniformLightDiffuse,   0.5f, 0.5f, 0.5f);
-				glUniform3f(glContext->uniformLightSpecular,  1.0f, 1.0f, 1.0f);
-				glUniform3fv(glContext->uniformLightPos, 1, lightPos.e);
+				// Setup light
+				{
+					// Set physical light uniforms
+					glUniform3f(glContext->uniformLightAmbient, 0.1f, 0.1f, 0.1f);
+					glUniform3f(glContext->uniformLightDiffuse, 0.8f, 0.8f, 0.8f);
+					glUniform3f(glContext->uniformLightSpecular, 1.0f, 1.0f, 1.0f);
 
-				glDrawArrays(GL_TRIANGLES, 0, 36);
+					// Set light attenuation, a quadratic falloff in intensity
+					glUniform1f(glContext->uniformLightConstant, 1.0f);
+					glUniform1f(glContext->uniformLightLinear, 0.09f);
+					glUniform1f(glContext->uniformLightQuadratic, 0.032f);
+
+					// Set spot light data
+					glUniform3fv(glContext->uniformLightPos, 1, state->cameraP.e);
+					glUniform3fv(glContext->uniformLightDir, 1, cameraFront.e);
+					glUniform1f(glContext->uniformLightCutOff,      cosf(DQN_DEGREES_TO_RADIANS(12.5f)));
+					glUniform1f(glContext->uniformLightOuterCutOff, cosf(DQN_DEGREES_TO_RADIANS(17.5f)));
+				}
+
+				DqnV3 cubePositions[] = {
+				    DqnV3_3f(0.0f, 0.0f, 0.0f),     //
+				    DqnV3_3f(2.0f, 5.0f, -15.0f),   //
+				    DqnV3_3f(-1.5f, -2.2f, -2.5f),  //
+				    DqnV3_3f(-3.8f, -2.0f, -12.3f), //
+				    DqnV3_3f(2.4f, -0.4f, -3.5f),   //
+				    DqnV3_3f(-1.7f, 3.0f, -7.5f),   //
+				    DqnV3_3f(1.3f, -2.0f, -2.5f),   //
+				    DqnV3_3f(1.5f, 2.0f, -2.5f),    //
+				    DqnV3_3f(1.5f, 0.2f, -1.5f),    //
+				    DqnV3_3f(-1.3f, 1.0f, -1.5f)    //
+				};
+
+				for (DqnV3 vec : cubePositions)
+				{
+					// Set transform matrices
+					DqnMat4 model = DqnMat4_TranslateV3(vec);
+					model         = DqnMat4_Mul(model, DqnMat4_Rotate(radiansRotate, 1.0f, 0.3f, 0.5f));
+					glUniformMatrix4fv(glContext->uniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
+
+					glDrawArrays(GL_TRIANGLES, 0, 36);
+				}
 			}
-
 		}
 	}
 
