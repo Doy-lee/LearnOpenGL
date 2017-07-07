@@ -142,10 +142,9 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 			struct Material
 			{
-				vec3 ambient;
-				vec3 diffuse;
-				vec3 specular;
-				float shininess;
+				sampler2D diffuse;
+				sampler2D specular;
+				float     shininess;
 			};
 
 			struct Light
@@ -157,34 +156,29 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				vec3 specular;
 			};
 
-			uniform sampler2D inTexture1;
-			uniform sampler2D inTexture2;
-
 			uniform Material  material;
 			uniform Light     light;
 			uniform vec3      viewPos;
 
 			void main()
 			{
-				vec3 ambient  = material.ambient * light.ambient;
+				vec3 ambient  = light.ambient * vec3(texture(material.diffuse, texCoord));
 				vec3 norm     = normalize(normal);
 				vec3 lightDir = normalize(light.position - fragPos);
 
 				// Calculate diffuse, the angle between the light direction and surface normal
 				float diffuseVal = (max(dot(norm, lightDir), 0));
-				vec3 diffuse     = (diffuseVal * material.diffuse) * light.diffuse;
+				vec3 diffuse     = light.diffuse * diffuseVal * vec3(texture(material.diffuse, texCoord));
 
 				// Calculate specular, the angle between the view and the reflection of the light vector
 				// NOTE(doyle): Reflect first arg expects the vector to point from the light src to fragment, so reverse it
 				vec3  viewDir     = normalize(viewPos - fragPos);
 				vec3  reflectDir  = reflect(-lightDir, norm);
 				float specularVal = pow(max(dot(viewDir, reflectDir), 0), material.shininess);
-				vec3  specular    = (material.specular * specularVal) * light.specular;
+				vec3  specular    = light.specular * specularVal * vec3(texture(material.specular, texCoord));
 
 				// Sample texture and apply light to texture
-				vec4 texel = mix(texture(inTexture1, texCoord), texture(inTexture2, texCoord), 0.2);
-				vec3 light = ambient + diffuse + specular;
-				fragColor  = vec4(light, 1.0f);
+				fragColor = vec4(ambient + diffuse + specular, 1.0f);
 			}
 			)DQN";
 
@@ -217,17 +211,6 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			{
 				glUseProgram(glContext->mainShaderId);
 
-				// Enable textures
-				if (0)
-				{
-					i32 tex1Loc = glGetUniformLocation(glContext->mainShaderId, "inTexture1");
-					i32 tex2Loc = glGetUniformLocation(glContext->mainShaderId, "inTexture2");
-					DQN_ASSERT_MSG(tex1Loc != -1 && tex2Loc != -1, "tex1Loc: %d, tex2Loc: %d", tex1Loc, tex2Loc);
-
-					glUniform1i(tex1Loc, 0);
-					glUniform1i(tex2Loc, 1);
-				}
-
 				// MVP matrix
 				{
 					glContext->uniformProjectionLoc = glGetUniformLocation(glContext->mainShaderId, "projection");
@@ -243,14 +226,16 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 				// Material uniforms
 				{
-					glContext->uniformMaterialAmbient   = glGetUniformLocation(glContext->mainShaderId, "material.ambient");
 					glContext->uniformMaterialDiffuse   = glGetUniformLocation(glContext->mainShaderId, "material.diffuse");
 					glContext->uniformMaterialSpecular  = glGetUniformLocation(glContext->mainShaderId, "material.specular");
 					glContext->uniformMaterialShininess = glGetUniformLocation(glContext->mainShaderId, "material.shininess");
-					DQN_ASSERT(glContext->uniformMaterialAmbient != -1);
 					DQN_ASSERT(glContext->uniformMaterialDiffuse != -1);
 					DQN_ASSERT(glContext->uniformMaterialSpecular != -1);
 					DQN_ASSERT(glContext->uniformMaterialShininess != -1);
+
+					// Set the uniform sampler2D to use GL_TEXTURE0 and 1
+					glUniform1i(glContext->uniformMaterialDiffuse, 0);
+					glUniform1i(glContext->uniformMaterialSpecular, 1);
 				}
 
 				// Physical Light uniforms
@@ -448,7 +433,36 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 
 		        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bitmap->dim.w, bitmap->dim.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->memory);
 		        glGenerateMipmap(GL_TEXTURE_2D);
+			}
 
+			*bitmap = {};
+			if (LOGL_LoadBitmap(mainStack, tempStack, bitmap, "container2.png"))
+			{
+				glGenTextures(1, &glContext->texIdCrate);
+				glBindTexture(GL_TEXTURE_2D, glContext->texIdCrate);
+
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bitmap->dim.w, bitmap->dim.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->memory);
+				glGenerateMipmap(GL_TEXTURE_2D);
+			}
+
+			*bitmap = {};
+			if (LOGL_LoadBitmap(mainStack, tempStack, bitmap, "container2_specular.png"))
+			{
+				glGenTextures(1, &glContext->texIdCrateSpecular);
+				glBindTexture(GL_TEXTURE_2D, glContext->texIdCrateSpecular);
+
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bitmap->dim.w, bitmap->dim.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, bitmap->memory);
+				glGenerateMipmap(GL_TEXTURE_2D);
 			}
 		}
 
@@ -526,9 +540,9 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				// Activate texture bindings for cube
 				{
 					glActiveTexture(GL_TEXTURE0);
-					glBindTexture(GL_TEXTURE_2D, glContext->texIdContainer);
+					glBindTexture(GL_TEXTURE_2D, glContext->texIdCrate);
 					glActiveTexture(GL_TEXTURE1);
-					glBindTexture(GL_TEXTURE_2D, glContext->texIdFace);
+					glBindTexture(GL_TEXTURE_2D, glContext->texIdCrateSpecular);
 				}
 
 				// Set transform matrices
@@ -540,8 +554,6 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				glUniform3fv(glContext->uniformViewPos,     1, state->cameraP.e);
 
 				// Set material uniforms
-				glUniform3f(glContext->uniformMaterialAmbient,   1.0f, 0.5f, 0.31f);
-				glUniform3f(glContext->uniformMaterialDiffuse,   1.0f, 0.5f, 0.31f);
 				glUniform3f(glContext->uniformMaterialSpecular,  0.5f, 0.5f, 0.5f);
 				glUniform1f(glContext->uniformMaterialShininess, 32.0f);
 

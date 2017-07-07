@@ -21,7 +21,6 @@ struct LOGLContext
 	i32 uniformViewLoc;
 	i32 uniformModelLoc;
 
-	i32 uniformMaterialAmbient;
 	i32 uniformMaterialDiffuse;
 	i32 uniformMaterialSpecular;
 	i32 uniformMaterialShininess;
@@ -41,6 +40,8 @@ struct LOGLContext
 	u32 vbo;
 	u32 ebo;
 
+	u32 texIdCrateSpecular;
+	u32 texIdCrate;
 	u32 texIdContainer;
 	u32 texIdFace;
 };
