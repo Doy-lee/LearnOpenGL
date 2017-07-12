@@ -1933,7 +1933,7 @@ DQN_FILE_SCOPE bool DqnAssertInternal(const bool result, const char *const file,
 		const char *const formatStrWithMsg = "DqnAssert() failed: %s|%d| (%s): %s\n";
 		const char *const formatStr        = (msg) ? formatStrWithMsg : formatStrNoMsg;
 
-		char userMsg[512] = {};
+		char userMsg[2048] = {};
 		if (msg)
 		{
 			va_list argList;
@@ -7127,9 +7127,10 @@ DQN_FILE_SCOPE void DqnWin32_DisplayLastError(const char *const errorPrefix)
 	}
 }
 
+const i32 DQN_WIN32_INTERNAL_ERROR_MSG_SIZE = 2048;
 DQN_FILE_SCOPE void DqnWin32_DisplayErrorCode(const DWORD error, const char *const errorPrefix)
 {
-	char errorMsg[1024] = {0};
+	char errorMsg[DQN_WIN32_INTERNAL_ERROR_MSG_SIZE] = {0};
 	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
 	               NULL, error, 0, errorMsg, DQN_ARRAY_COUNT(errorMsg), NULL);
 
@@ -7140,7 +7141,7 @@ DQN_FILE_SCOPE void DqnWin32_DisplayErrorCode(const DWORD error, const char *con
 
 DQN_FILE_SCOPE void DqnWin32_OutputDebugString(const char *const formatStr, ...)
 {
-	char str[1024] = {0};
+	char str[DQN_WIN32_INTERNAL_ERROR_MSG_SIZE] = {0};
 
 	va_list argList;
 	va_start(argList, formatStr);

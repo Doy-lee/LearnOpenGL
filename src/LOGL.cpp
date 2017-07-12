@@ -57,7 +57,7 @@ FILE_SCOPE bool OpenGL_CompileShader(char *srcCode, u32 *const mainShaderId, enu
 	glGetShaderiv(*mainShaderId, GL_COMPILE_STATUS, &success);
 	if (!success)
 	{
-		char infoLog[512] = {};
+		char infoLog[2048] = {};
 		glGetShaderInfoLog(*mainShaderId, DQN_ARRAY_COUNT(infoLog), NULL, infoLog);
 		glDeleteShader(*mainShaderId);
 		DQN_ASSERT_MSG(DQN_INVALID_CODE_PATH, "glCompileShader() failed: %s", infoLog);
@@ -116,29 +116,22 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 			uniform mat4 view;
 			uniform mat4 projection;
 
-			out vec3 vertexColor;
-			out vec2 texCoord;
-			out vec3 normal;
-			out vec3 fragPos;
+			out vec3 ioFragPos;
+			out vec3 ioNormal;
+			out vec2 ioTexCoord;
 
 			void main()
 			{
-				fragPos     = vec3(model * vec4(aPos, 1.0));
-			    gl_Position = projection * view * vec4(fragPos, 1.0f);
-			    vertexColor = aColor;
-			    texCoord    = aTexCoord;
-				normal      = mat3(transpose(inverse(model))) * aNormal;
+				ioFragPos     = vec3(model * vec4(aPos, 1.0));
+			    gl_Position = projection * view * vec4(ioFragPos, 1.0f);
+			    ioTexCoord    = aTexCoord;
+				ioNormal      = mat3(transpose(inverse(model))) * aNormal;
 			}
 			)DQN";
 
 			char *fragmentShaderSrc = R"DQN(
 			#version 330 core
 			out vec4 fragColor;
-
-			in  vec3 vertexColor;
-			in  vec2 texCoord;
-			in  vec3 normal;
-			in  vec3 fragPos;
 
 			struct Material
 			{
@@ -147,7 +140,7 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				float     shininess;
 			};
 
-			struct Light {
+			struct SpotLight {
 				vec3 position;
 				vec3 direction;
 				float cutOff;
@@ -162,42 +155,120 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				float quadratic;
 			};
 
-			uniform Material material;
-			uniform Light    light;
-			uniform vec3     viewPos;
+			struct DirLight {
+				vec3 direction;
 
-			void main()
+				vec3 ambient;
+				vec3 diffuse;
+				vec3 specular;
+			};
+
+			struct PointLight {
+				vec3 position;
+
+				vec3 ambient;
+				vec3 diffuse;
+				vec3 specular;
+
+				float constant;
+				float linear;
+				float quadratic;
+			};
+
+			in vec2 ioTexCoord;
+			in vec3 ioNormal;
+			in vec3 ioFragPos;
+
+			#define NUM_POINT_LIGHTS 4
+			uniform PointLight pointLights[NUM_POINT_LIGHTS];
+			uniform Material   material;
+			uniform SpotLight  spotLight;
+			uniform DirLight   dirLight;
+			uniform vec3       viewPos;
+
+			vec3 CalcPointLight(PointLight light, vec3 normal, vec3 fragPos, vec3 viewDir, vec2 texCoord)
 			{
-				vec3 ambient  = light.ambient * texture(material.diffuse, texCoord).rgb;
-				vec3 lightDir = normalize(light.position - fragPos);
-				vec3 norm     = normalize(normal);
+				vec3 lightDir     = normalize(light.position - fragPos);
+				float diffuseVal  = max(dot(normal, lightDir), 0);
 
-				// Diffuse, the angle between the light direction and surface normal
-				float diffuseVal = (max(dot(norm, lightDir), 0));
-				vec3 diffuse     = light.diffuse * diffuseVal * texture(material.diffuse, texCoord).rgb;
+				vec3 reflectDir   = reflect(-lightDir, normal);
+				float specularVal = pow(max(dot(reflectDir,  viewDir), 0), material.shininess);
 
-				// Specular, the angle between the view and the reflection of the light vector
-				// NOTE(doyle): Reflect first arg expects the vector to point from the light src to fragment, so reverse it
-				vec3  viewDir     = normalize(viewPos - fragPos);
-				vec3  reflectDir  = reflect(-lightDir, norm);
-				float specularVal = pow(max(dot(viewDir, reflectDir), 0), material.shininess);
-				vec3  specular    = light.specular * specularVal * texture(material.specular, texCoord).rgb;
-
-				// spotlight w/ soft edges
-				float theta     = dot(lightDir, normalize(light.direction));
-				float epsilon   = light.cutOff - light.outerCutOff;
-				float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
-				diffuse  *= intensity;
-				specular *= intensity;
-
-				// Calculate attenuation
+				// Attentuate the light to diminish over a quadratic
 				float distance    = length(light.position - fragPos);
 				float attenuation = 1.0f / (light.constant + (light.linear * distance) + (light.quadratic * distance * distance));
+
+				vec3 ambient  = light.ambient  * vec3(texture(material.diffuse, texCoord));
+				vec3 diffuse  = light.diffuse  * diffuseVal  * vec3(texture(material.diffuse , texCoord));
+				vec3 specular = light.specular * specularVal * vec3(texture(material.specular, texCoord));
 				ambient  *= attenuation;
 				diffuse  *= attenuation;
 				specular *= attenuation;
 
-				fragColor = vec4(ambient + diffuse + specular, 1.0f);
+				return (ambient + diffuse + specular);
+			}
+
+			vec3 CalcDirLight(DirLight light, vec3 normal, vec3 viewDir, vec2 texCoord)
+			{
+				// Diffuse, the angle between the light direction and surface normal
+				vec3 lightDir     = normalize(light.direction);
+				float diffuseVal  = max(dot(normal, lightDir), 0);
+
+				// Specular, the angle between the view and the reflection of the light vector
+				// NOTE(doyle): Reflect first arg expects the vector to point from the light src to fragment, so reverse it
+				vec3 reflectDir    = reflect(normal, -lightDir);
+				float specularVal  = pow(max(dot(reflectDir,  viewDir), 0), material.shininess);
+
+				vec3 ambient  = light.ambient  * vec3(texture(material.diffuse, texCoord));
+				vec3 diffuse  = light.diffuse  * diffuseVal  * vec3(texture(material.diffuse , texCoord));
+				vec3 specular = light.specular * specularVal * vec3(texture(material.specular, texCoord));
+
+				return (ambient + diffuse + specular);
+			}
+
+			vec3 CalcSpotLight(SpotLight spotLight, vec3 normal, vec3 fragPos, vec3 viewDir, vec2 texCoord)
+			{
+				// Diffuse, the angle between the light direction and surface normal
+				vec3 lightDir    = normalize(spotLight.position - fragPos);
+				float diffuseVal = (max(dot(normal, lightDir), 0));
+
+				// Specular, the angle between the view and the reflection of the light vector
+				// NOTE(doyle): Reflect first arg expects the vector to point from the light src to fragment, so reverse it
+				vec3  reflectDir  = reflect(-lightDir, normal);
+				float specularVal = pow(max(dot(viewDir, reflectDir), 0), material.shininess);
+
+				vec3 ambient  = spotLight.ambient  * vec3(texture(material.diffuse, texCoord));
+				vec3 diffuse  = spotLight.diffuse  * diffuseVal  * vec3(texture(material.diffuse , texCoord));
+				vec3 specular = spotLight.specular * specularVal * vec3(texture(material.specular, texCoord));
+
+				// spotlight w/ soft edges
+				float theta     = dot(lightDir, normalize(spotLight.direction));
+				float epsilon   = spotLight.cutOff - spotLight.outerCutOff;
+				float intensity = clamp((theta - spotLight.outerCutOff) / epsilon, 0.0, 1.0);
+				diffuse  *= intensity;
+				specular *= intensity;
+
+				// Calculate attenuation
+				float distance    = length(spotLight.position - fragPos);
+				float attenuation = 1.0f / (spotLight.constant + (spotLight.linear * distance) + (spotLight.quadratic * distance * distance));
+				ambient  *= attenuation;
+				diffuse  *= attenuation;
+				specular *= attenuation;
+
+				return (ambient + diffuse + specular);
+			}
+
+			void main()
+			{
+				vec3 normal  = normalize(ioNormal);
+				vec3 viewDir = normalize(viewPos - ioFragPos);
+
+				vec3 result = CalcDirLight(dirLight, normal, viewDir, ioTexCoord);
+				for (int i = 0; i < NUM_POINT_LIGHTS; i++)
+					result += CalcPointLight(pointLights[i], normal, ioFragPos, viewDir, ioTexCoord);
+
+				result += CalcSpotLight(spotLight, normal, ioFragPos, viewDir, ioTexCoord);
+				fragColor = vec4(result, 1.0f);
 			}
 			)DQN";
 
@@ -257,30 +328,63 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 					glUniform1i(glContext->uniformMaterialSpecular, 1);
 				}
 
-				// Setup lights
+				// Setup point lights
 				{
-					glContext->uniformLightAmbient  = glGetUniformLocation(glContext->mainShaderId, "light.ambient");
-					glContext->uniformLightDiffuse  = glGetUniformLocation(glContext->mainShaderId, "light.diffuse");
-					glContext->uniformLightSpecular = glGetUniformLocation(glContext->mainShaderId, "light.specular");
-					DQN_ASSERT(glContext->uniformLightAmbient != -1);
-					DQN_ASSERT(glContext->uniformLightDiffuse != -1);
-					DQN_ASSERT(glContext->uniformLightSpecular != -1);
+					char *uniformAttrib[] = {"position", "ambient", "diffuse", "specular", "constant", "linear", "quadratic"};
+					DQN_ASSERT(DQN_ARRAY_COUNT(uniformAttrib) == DQN_ARRAY_COUNT(glContext->uniformPointLights[0].uniforms));
+					for (i32 lightIndex = 0; lightIndex < DQN_ARRAY_COUNT(glContext->uniformPointLights); lightIndex++)
+					{
+						LOGLPointLight *light = &glContext->uniformPointLights[lightIndex];
+						for (i32 uniformIndex = 0; uniformIndex < DQN_ARRAY_COUNT(light->uniforms); uniformIndex++)
+						{
+							char uniformString[128] = {};
+							u32 numCopied           = Dqn_sprintf(uniformString, "pointLights[%d].%s", lightIndex, uniformAttrib[uniformIndex]);
+							DQN_ASSERT(numCopied < DQN_ARRAY_COUNT(uniformString));
 
-					glContext->uniformLightConstant  = glGetUniformLocation(glContext->mainShaderId, "light.constant");
-					glContext->uniformLightLinear    = glGetUniformLocation(glContext->mainShaderId, "light.linear");
-					glContext->uniformLightQuadratic = glGetUniformLocation(glContext->mainShaderId, "light.quadratic");
-					DQN_ASSERT(glContext->uniformLightConstant != -1);
-					DQN_ASSERT(glContext->uniformLightLinear != -1);
-					DQN_ASSERT(glContext->uniformLightQuadratic != -1);
+							light->uniforms[uniformIndex] = glGetUniformLocation(glContext->mainShaderId, uniformString);
+							DQN_ASSERT(light->uniforms[uniformIndex] != -1);
+						}
+					}
+				}
 
-					glContext->uniformLightPos         = glGetUniformLocation(glContext->mainShaderId, "light.position");
-					glContext->uniformLightDir         = glGetUniformLocation(glContext->mainShaderId, "light.direction");
-					glContext->uniformLightCutOff      = glGetUniformLocation(glContext->mainShaderId, "light.cutOff");
-					glContext->uniformLightOuterCutOff = glGetUniformLocation(glContext->mainShaderId, "light.outerCutOff");
-					DQN_ASSERT(glContext->uniformLightPos != -1);
-					DQN_ASSERT(glContext->uniformLightDir != -1);
-					DQN_ASSERT(glContext->uniformLightCutOff != -1);
-					DQN_ASSERT(glContext->uniformLightOuterCutOff != -1);
+				// Setup dir lights
+				if (1)
+				{
+					glContext->uniformDirLightDir      = glGetUniformLocation(glContext->mainShaderId, "dirLight.direction");
+					glContext->uniformDirLightAmbient  = glGetUniformLocation(glContext->mainShaderId, "dirLight.ambient");
+					glContext->uniformDirLightDiffuse  = glGetUniformLocation(glContext->mainShaderId, "dirLight.diffuse");
+					glContext->uniformDirLightSpecular = glGetUniformLocation(glContext->mainShaderId, "dirLight.specular");
+					DQN_ASSERT(glContext->uniformDirLightDir      != -1);
+					DQN_ASSERT(glContext->uniformDirLightAmbient  != -1);
+					DQN_ASSERT(glContext->uniformDirLightDiffuse  != -1);
+					DQN_ASSERT(glContext->uniformDirLightSpecular != -1);
+				}
+
+				// Setup spot lights
+				if (1)
+				{
+					glContext->uniformSpotLightAmbient  = glGetUniformLocation(glContext->mainShaderId, "spotLight.ambient");
+					glContext->uniformSpotLightDiffuse  = glGetUniformLocation(glContext->mainShaderId, "spotLight.diffuse");
+					glContext->uniformSpotLightSpecular = glGetUniformLocation(glContext->mainShaderId, "spotLight.specular");
+					DQN_ASSERT(glContext->uniformSpotLightAmbient != -1);
+					DQN_ASSERT(glContext->uniformSpotLightDiffuse != -1);
+					DQN_ASSERT(glContext->uniformSpotLightSpecular != -1);
+
+					glContext->uniformSpotLightConstant  = glGetUniformLocation(glContext->mainShaderId, "spotLight.constant");
+					glContext->uniformSpotLightLinear    = glGetUniformLocation(glContext->mainShaderId, "spotLight.linear");
+					glContext->uniformSpotLightQuadratic = glGetUniformLocation(glContext->mainShaderId, "spotLight.quadratic");
+					DQN_ASSERT(glContext->uniformSpotLightConstant != -1);
+					DQN_ASSERT(glContext->uniformSpotLightLinear != -1);
+					DQN_ASSERT(glContext->uniformSpotLightQuadratic != -1);
+
+					glContext->uniformSpotLightPos         = glGetUniformLocation(glContext->mainShaderId, "spotLight.position");
+					glContext->uniformSpotLightDir         = glGetUniformLocation(glContext->mainShaderId, "spotLight.direction");
+					glContext->uniformSpotLightCutOff      = glGetUniformLocation(glContext->mainShaderId, "spotLight.cutOff");
+					glContext->uniformSpotLightOuterCutOff = glGetUniformLocation(glContext->mainShaderId, "spotLight.outerCutOff");
+					DQN_ASSERT(glContext->uniformSpotLightPos != -1);
+					DQN_ASSERT(glContext->uniformSpotLightDir != -1);
+					DQN_ASSERT(glContext->uniformSpotLightCutOff != -1);
+					DQN_ASSERT(glContext->uniformSpotLightOuterCutOff != -1);
 				}
 
 				// Upload projection to GPU
@@ -548,18 +652,26 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 		// Render model code
 		if (1)
 		{
-			DqnV3 lightPos = DqnV3_3f(1.2f, 1.0f, 2.0f);
+			DqnV3 pointLightPositions[] = {
+			    DqnV3_3f(0.7f, 0.2f, 2.0f),    //
+			    DqnV3_3f(2.3f, -3.3f, -4.0f),  //
+			    DqnV3_3f(-4.0f, 2.0f, -12.0f), //
+			    DqnV3_3f(0.0f, 0.0f, -3.0f)    //
+			};
+
 			// Light source
 			{
 				glUseProgram(glContext->lightShaderId);
 				glBindVertexArray(glContext->lightVao);
-
-				DqnMat4 model = DqnMat4_TranslateV3(lightPos);
-				model         = DqnMat4_Mul(model, DqnMat4_ScaleV3(DqnV3_1f(0.25f)));
-				glUniformMatrix4fv(glContext->lightUniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
 				glUniformMatrix4fv(glContext->lightUniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
 
-				glDrawArrays(GL_TRIANGLES, 0, 36);
+				for (i32 i = 0; i < DQN_ARRAY_COUNT(pointLightPositions); i++)
+				{
+					DqnMat4 model = DqnMat4_TranslateV3(pointLightPositions[i]);
+					model         = DqnMat4_Mul(model, DqnMat4_ScaleV3(DqnV3_1f(0.25f)));
+					glUniformMatrix4fv(glContext->lightUniformModelLoc, 1, GL_FALSE, (f32 *)model.e);
+					glDrawArrays(GL_TRIANGLES, 0, 36);
+				}
 			}
 
 			// Cube
@@ -582,26 +694,50 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				glUniformMatrix4fv(glContext->uniformViewLoc, 1, GL_FALSE, (f32 *)view.e);
 				glUniform3fv(glContext->uniformViewPos, 1, state->cameraP.e);
 
-				// Set material uniforms
-				glUniform1f(glContext->uniformMaterialShininess, 32.0f);
-
 				// Setup light
 				{
-					// Set physical light uniforms
-					glUniform3f(glContext->uniformLightAmbient, 0.1f, 0.1f, 0.1f);
-					glUniform3f(glContext->uniformLightDiffuse, 0.8f, 0.8f, 0.8f);
-					glUniform3f(glContext->uniformLightSpecular, 1.0f, 1.0f, 1.0f);
+					// Set point light data
+					{
+						DQN_ASSERT(DQN_ARRAY_COUNT(glContext->uniformPointLights) == DQN_ARRAY_COUNT(pointLightPositions));
+						for (i32 i = 0; i < DQN_ARRAY_COUNT(glContext->uniformPointLights); i++)
+						{
+							LOGLPointLight *light = &glContext->uniformPointLights[i];
+							glUniform3fv(light->pos, 1, pointLightPositions[i].e);
 
-					// Set light attenuation, a quadratic falloff in intensity
-					glUniform1f(glContext->uniformLightConstant, 1.0f);
-					glUniform1f(glContext->uniformLightLinear, 0.09f);
-					glUniform1f(glContext->uniformLightQuadratic, 0.032f);
+							glUniform3f(light->ambient , 0.05f, 0.05f, 0.05f);
+							glUniform3f(light->diffuse , 0.8f, 0.8f, 0.8f);
+							glUniform3f(light->specular, 1.0f, 1.0f, 1.0f);
+
+							glUniform1f(light->constant , 1.0f);
+							glUniform1f(light->linear   , 0.09f);
+							glUniform1f(light->quadratic, 0.032f);
+						}
+					}
+
+					// Set dir light
+					{
+						glUniform3f(glContext->uniformDirLightDir, -0.2f, -1.0f, -0.3f);
+						glUniform3f(glContext->uniformDirLightAmbient,  0.05f, 0.05f, 0.05f);
+						glUniform3f(glContext->uniformDirLightDiffuse,  0.4f, 0.4f, 0.4f);
+						glUniform3f(glContext->uniformDirLightSpecular, 0.5f, 0.5f, 0.5f);
+					}
 
 					// Set spot light data
-					glUniform3fv(glContext->uniformLightPos, 1, state->cameraP.e);
-					glUniform3fv(glContext->uniformLightDir, 1, cameraFront.e);
-					glUniform1f(glContext->uniformLightCutOff,      cosf(DQN_DEGREES_TO_RADIANS(12.5f)));
-					glUniform1f(glContext->uniformLightOuterCutOff, cosf(DQN_DEGREES_TO_RADIANS(17.5f)));
+					{
+						glUniform3f(glContext->uniformSpotLightAmbient, 0.1f, 0.1f, 0.1f);
+						glUniform3f(glContext->uniformSpotLightDiffuse, 0.8f, 0.8f, 0.8f);
+						glUniform3f(glContext->uniformSpotLightSpecular, 1.0f, 1.0f, 1.0f);
+
+						// Set light attenuation, a quadratic falloff in intensity
+						glUniform1f(glContext->uniformSpotLightConstant, 1.0f);
+						glUniform1f(glContext->uniformSpotLightLinear, 0.09f);
+						glUniform1f(glContext->uniformSpotLightQuadratic, 0.032f);
+
+						glUniform3fv(glContext->uniformSpotLightPos, 1, state->cameraP.e);
+						glUniform3fv(glContext->uniformSpotLightDir, 1, cameraFront.e);
+						glUniform1f(glContext->uniformSpotLightCutOff, cosf(DQN_DEGREES_TO_RADIANS(12.5f)));
+						glUniform1f(glContext->uniformSpotLightOuterCutOff, cosf(DQN_DEGREES_TO_RADIANS(17.5f)));
+					}
 				}
 
 				DqnV3 cubePositions[] = {
@@ -617,6 +753,8 @@ void LOGL_Update(struct PlatformInput *const input, struct PlatformMemory *const
 				    DqnV3_3f(-1.3f, 1.0f, -1.5f)    //
 				};
 
+				// Set material uniforms
+				glUniform1f(glContext->uniformMaterialShininess, 32.0f);
 				for (DqnV3 vec : cubePositions)
 				{
 					// Set transform matrices
