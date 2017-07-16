@@ -21,14 +21,14 @@ if %errorlevel%==0 (
 	gtags
 )
 
+set ProjectName=LearnOpenGL
+
 set CtimeExists=0
 where /q ctime
 if %errorlevel%==0 (
 	set CtimeExists=1;
 	ctime -begin ..\src\%ProjectName%.ctm
 )
-
-set ProjectName=LearnOpenGL
 
 IF NOT EXIST ..\bin mkdir ..\bin
 pushd ..\bin

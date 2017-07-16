@@ -723,7 +723,8 @@ DQN_FILE_SCOPE DqnV2 DqnV2_Normalise    (DqnV2 a);
 DQN_FILE_SCOPE bool  DqnV2_Overlaps     (DqnV2 a, DqnV2 b);
 DQN_FILE_SCOPE DqnV2 DqnV2_Perpendicular(DqnV2 a);
 
-DQN_FILE_SCOPE DqnV2 DqnV2_ConstrainToRatio(DqnV2 dim, DqnV2 ratio); // Resize the dimension to fit the aspect ratio provided. Downscale only.
+DQN_FILE_SCOPE DqnV2 DqnV2_ResizeKeepAspectRatio(DqnV2 srcSize, DqnV2 targetSize);
+DQN_FILE_SCOPE DqnV2 DqnV2_ConstrainToRatio     (DqnV2 dim, DqnV2 ratio); // Resize the dimension to fit the aspect ratio provided. Downscale only.
 
 #ifdef DQN_CPP_MODE
 DQN_FILE_SCOPE inline DqnV2  operator- (DqnV2  a, DqnV2 b) { return      DqnV2_Sub     (a, b);  }
@@ -1986,11 +1987,7 @@ DQN_FILE_SCOPE void *DqnMem_Realloc(void *memory, const size_t newSize)
 
 DQN_FILE_SCOPE void DqnMem_Free(void *memory)
 {
-	if (memory)
-	{
-		free(memory);
-		memory = NULL;
-	}
+	if (memory) free(memory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2659,8 +2656,7 @@ DQN_FILE_SCOPE DqnV2 DqnV2_Normalise(DqnV2 a)
 	f32 magnitude = DqnV2_Length(DqnV2_2f(0, 0), a);
 	if (magnitude == 0) return DqnV2_1f(0.0f);
 
-	DqnV2 result  = DqnV2_2f(a.x, a.y);
-	result        = DqnV2_Scalef(a, 1 / magnitude);
+	DqnV2 result = DqnV2_Scalef(a, 1 / magnitude);
 	return result;
 }
 
@@ -2693,6 +2689,15 @@ DQN_FILE_SCOPE DqnV2 DqnV2_Perpendicular(DqnV2 a)
 	return result;
 }
 
+
+DQN_FILE_SCOPE DqnV2 DqnV2_ResizeKeepAspectRatio(DqnV2 srcSize, DqnV2 targetSize)
+{
+	f32 ratioA   = srcSize.w / targetSize.w;
+	f32 ratioB   = srcSize.h / targetSize.h;
+	f32 ratio    = DQN_MIN(ratioA, ratioB);
+	DqnV2 result = DqnV2_Scalef(targetSize, ratio);
+	return result;
+}
 
 DQN_FILE_SCOPE DqnV2 DqnV2_ConstrainToRatio(DqnV2 dim, DqnV2 ratio)
 {
@@ -6328,12 +6333,11 @@ DQN_FILE_SCOPE bool DqnFile_ReadEntireFile(const char *const path, u8 *const buf
 {
 	if (!path || !buffer) return false;
 
-	bool result = true;
 	size_t bytesReadInternal;
+	DqnFile file = {};
+	bool result = DqnFile_Open(path, &file, DqnFilePermissionFlag_Read, DqnFileAction_OpenOnly);
 
 	// TODO(doyle): Logging
-	DqnFile file = {};
-	result       = DqnFile_Open(path, &file, DqnFilePermissionFlag_Read, DqnFileAction_OpenOnly);
 	if (!result) goto cleanup;
 
 	if (file.size > bufferSize)
@@ -6415,15 +6419,9 @@ DQN_FILE_SCOPE bool DqnFile_GetFileSize(const char *const path, size_t *const si
 	if (*size == 0)
 	{
 		// If stat fails, then do a manual byte count
-		DqnFile file = {};
-		if (!DqnFileInternal_UnixOpen(path, &file, DqnFilePermissionFlag_Read,
-		                              DqnFileAction_OpenOnly))
-		{
-			return false;
-		}
-
-		*size = DqnFileInternal_UnixGetFileSizeManual((FILE *)file.handle, false);
-		DqnFile_Close(&file);
+		FILE *handle = fopen(path, "r");
+		*size        = DqnFileInternal_UnixGetFileSizeManual(handle, false);
+		fclose(handle);
 	}
 
 	return true;
